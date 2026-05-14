@@ -17,20 +17,29 @@
                 <div class="md:col-span-2">
 
                     <label class="block text-sm font-medium mb-2">
-                        Código de barras
+                        Código de barras / artículo
                     </label>
 
                     <x-filament::input.wrapper>
 
                         <x-filament::input
                             type="text"
-                            wire:model="codigo_barra"
-                            wire:keydown.enter="agregar"
+                            wire:model.defer="codigo_barra"
+                            wire:keydown.tab="buscarArticulo"
+                            wire:keydown.enter="buscarArticulo"
                             autofocus
-                            placeholder="Escanear código de barras"
+                            placeholder="Escanear código"
                         />
 
                     </x-filament::input.wrapper>
+
+                    @if (session()->has('error'))
+
+                        <div class="mt-2 text-sm text-danger-600 font-bold">
+                            {{ session('error') }}
+                        </div>
+
+                    @endif
 
                 </div>
 
@@ -72,6 +81,18 @@
                     </x-filament::input.wrapper>
 
                 </div>
+
+            </div>
+
+            <div class="mt-6">
+
+                <x-filament::button
+                    wire:click="agregar"
+                    size="xl"
+                    class="w-full"
+                >
+                    GUARDAR
+                </x-filament::button>
 
             </div>
 
@@ -126,7 +147,7 @@
         <x-filament::section>
 
             <x-slot name="heading">
-                Resumen del Inventario
+                Últimos movimientos
             </x-slot>
 
             <div class="overflow-x-auto">
@@ -134,6 +155,7 @@
                 <table class="w-full divide-y divide-gray-200 dark:divide-white/10">
 
                     <thead>
+
                         <tr class="bg-gray-50 dark:bg-white/5">
 
                             <th class="px-4 py-3 text-left text-sm font-semibold">
@@ -149,6 +171,7 @@
                             </th>
 
                         </tr>
+
                     </thead>
 
                     <tbody class="divide-y divide-gray-200 dark:divide-white/10">
@@ -192,5 +215,47 @@
         </x-filament::section>
 
     </div>
+
+    <script>
+
+        document.addEventListener('livewire:init', () => {
+
+            Livewire.on('focus-input', () => {
+
+                setTimeout(() => {
+
+                    let input = document.querySelector('input[type=text]');
+
+                    if (input) {
+                        input.focus();
+                    }
+
+                }, 100);
+
+            });
+
+        });
+
+    </script>
+
+<script>
+    document.addEventListener('livewire:init', () => {
+
+        Livewire.on('focus-input', () => {
+
+            setTimeout(() => {
+
+                let input = document.querySelector('input[type=text]');
+
+                if (input) {
+                    input.focus();
+                }
+
+            }, 100);
+
+        });
+
+    });
+</script>
 
 </x-filament-panels::page>

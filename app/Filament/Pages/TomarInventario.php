@@ -95,6 +95,8 @@ class TomarInventario extends Page
         $this->articulo = null;
 
         $this->cargarMovimientos();
+
+        $this->dispatch('focus-input');
     }
 
     public function cargarMovimientos(): void

@@ -25,7 +25,7 @@
                         <x-filament::input
                             type="text"
                             wire:model.defer="codigo_barra"
-                            wire:keydown.tab="buscarArticulo"
+                            wire:change="buscarArticulo"
                             wire:keydown.enter="buscarArticulo"
                             autofocus
                             placeholder="Escanear código"
@@ -84,6 +84,54 @@
 
             </div>
 
+            @if($articulo)
+
+                <div class="mt-6 rounded-xl border border-success-300 bg-success-50 p-4 dark:border-success-700 dark:bg-success-900/20">
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                        <div>
+
+                            <div class="text-sm text-gray-500">
+                                Código
+                            </div>
+
+                            <div class="text-xl font-bold">
+                                {{ $articulo->artcod }}
+                            </div>
+
+                        </div>
+
+                        <div>
+
+                            <div class="text-sm text-gray-500">
+                                Descripción
+                            </div>
+
+                            <div class="text-xl font-bold">
+                                {{ $articulo->artdes }}
+                            </div>
+
+                        </div>
+
+                        <div>
+
+                            <div class="text-sm text-gray-500">
+                                Cantidad
+                            </div>
+
+                            <div class="text-xl font-bold">
+                                {{ $cantidad }}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            @endif
+
             <div class="mt-6">
 
                 <x-filament::button
@@ -97,52 +145,6 @@
             </div>
 
         </x-filament::section>
-
-        @if($articulo)
-
-            <x-filament::section>
-
-                <x-slot name="heading">
-                    Artículo Escaneado
-                </x-slot>
-
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-                    <div>
-                        <div class="text-sm text-gray-500">
-                            Código
-                        </div>
-
-                        <div class="text-lg font-bold">
-                            {{ $articulo->artcod }}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div class="text-sm text-gray-500">
-                            Descripción
-                        </div>
-
-                        <div class="text-lg font-bold">
-                            {{ $articulo->artdes }}
-                        </div>
-                    </div>
-
-                    <div>
-                        <div class="text-sm text-gray-500">
-                            Cantidad
-                        </div>
-
-                        <div class="text-lg font-bold">
-                            {{ $cantidad }}
-                        </div>
-                    </div>
-
-                </div>
-
-            </x-filament::section>
-
-        @endif
 
         <x-filament::section>
 
@@ -237,25 +239,5 @@
         });
 
     </script>
-
-<script>
-    document.addEventListener('livewire:init', () => {
-
-        Livewire.on('focus-input', () => {
-
-            setTimeout(() => {
-
-                let input = document.querySelector('input[type=text]');
-
-                if (input) {
-                    input.focus();
-                }
-
-            }, 100);
-
-        });
-
-    });
-</script>
 
 </x-filament-panels::page>

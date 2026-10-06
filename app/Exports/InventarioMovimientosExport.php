@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 
-class InventarioExport implements FromCollection, WithHeadings
+class InventarioMovimientosExport implements FromCollection, WithHeadings
 {
     protected $inventarioId;
 
@@ -21,11 +21,15 @@ class InventarioExport implements FromCollection, WithHeadings
         $movimientos = DB::table('inventario_movimientos')
             ->where('inventario_id', $this->inventarioId)
             ->select(
+                'id',
                 'artcod',
-                DB::raw('SUM(cantidad) as total')
+                'codigo_barra',
+                'cantidad',
+                'ubicacion',
+                'usuario',
+                'created_at'
             )
-            ->groupBy('artcod')
-            ->orderBy('artcod')
+            ->orderBy('id')
             ->get();
 
         $articulos = DB::connection('mutualnew')
@@ -37,11 +41,21 @@ class InventarioExport implements FromCollection, WithHeadings
 
             return [
 
+                'ID' => $mov->id,
+
                 'ARTICULO' => $mov->artcod,
 
                 'DESCRIPCION' => $articulos[$mov->artcod] ?? '',
 
-                'CANTIDAD' => $mov->total,
+                'CODIGO_BARRA' => $mov->codigo_barra,
+
+                'CANTIDAD' => $mov->cantidad,
+
+                'UBICACION' => $mov->ubicacion,
+
+                'USUARIO' => $mov->usuario,
+
+                'FECHA' => $mov->created_at,
 
             ];
         });
@@ -50,9 +64,14 @@ class InventarioExport implements FromCollection, WithHeadings
     public function headings(): array
     {
         return [
+            'ID',
             'ARTICULO',
             'DESCRIPCION',
+            'CODIGO_BARRA',
             'CANTIDAD',
+            'UBICACION',
+            'USUARIO',
+            'FECHA',
         ];
     }
 }

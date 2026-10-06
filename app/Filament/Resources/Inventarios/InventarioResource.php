@@ -17,7 +17,9 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Actions\EditAction;
 use Filament\Actions\Action;
+use Filament\Tables\Filters\SelectFilter;
 use App\Exports\InventarioExport;
+use App\Exports\InventarioMovimientosExport;
 use Maatwebsite\Excel\Facades\Excel;
 
 
@@ -79,6 +81,17 @@ public static function table(Table $table): Table
 
         ])
         ->defaultSort('id', 'desc')
+        ->filters([
+
+            SelectFilter::make('estado')
+                ->label('Estado')
+                ->options([
+                    'abierto' => 'Abierto',
+                    'cerrado' => 'Cerrado',
+                ])
+                ->default('abierto'),
+
+        ])
         ->actions([
 
             EditAction::make(),
@@ -87,6 +100,7 @@ public static function table(Table $table): Table
                 ->label('Tomar')
                 ->icon('heroicon-o-play')
                 ->color('success')
+                ->hidden(fn ($record) => $record->estado === 'cerrado')
                 ->url(fn ($record) =>
                     url('/admin/tomar-inventario/' . $record->id)
                 ),
@@ -101,6 +115,18 @@ public static function table(Table $table): Table
                         'inventario_'.$record->id.'.xlsx'
                     );
             
+                }),    
+                Action::make('exportar_movimientos')
+                ->label('Exportar Movimientos')
+                ->icon('heroicon-o-list-bullet')
+                ->color('info')
+                ->action(function ($record) {
+
+                    return Excel::download(
+                        new InventarioMovimientosExport($record->id),
+                        'movimientos_inventario_'.$record->id.'.xlsx'
+                    );
+
                 }),    
         ]);
 }

@@ -12,6 +12,8 @@
                 Escaneo y carga de artículos
             </x-slot>
 
+            @if($inventarioAbierto)
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
 
                 <div class="md:col-span-2">
@@ -143,6 +145,22 @@
                 </x-filament::button>
 
             </div>
+
+            @else
+
+            <div class="mt-6 rounded-xl border border-warning-300 bg-warning-50 p-4 dark:border-warning-700 dark:bg-warning-900/20">
+
+                <div class="font-semibold text-warning-700 dark:text-warning-400">
+                    Inventario cerrado
+                </div>
+
+                <div class="text-sm text-warning-600 dark:text-warning-500">
+                    No se pueden cargar más movimientos en este inventario.
+                </div>
+
+            </div>
+
+            @endif
 
         </x-filament::section>
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Inventario;
 use App\Models\InventarioMovimiento;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -23,6 +24,8 @@ class TomarInventario extends Page
 
     public $inventario;
 
+    public bool $inventarioAbierto = true;
+
     public $codigo_barra = '';
 
     public $cantidad = 1;
@@ -35,7 +38,13 @@ class TomarInventario extends Page
 
     public function mount($inventario): void
     {
+        $registro = Inventario::query()->find($inventario);
+
+        abort_unless($registro, 404);
+
         $this->inventario = $inventario;
+
+        $this->inventarioAbierto = $registro->estado === 'abierto';
 
         $this->cargarMovimientos();
     }
@@ -75,6 +84,19 @@ class TomarInventario extends Page
 
     public function agregar(): void
     {
+        if (! $this->inventarioEstaAbierto()) {
+
+            $this->inventarioAbierto = false;
+
+            Notification::make()
+                ->title('Inventario cerrado')
+                ->body('No se pueden cargar movimientos en un inventario cerrado.')
+                ->danger()
+                ->send();
+
+            return;
+        }
+
         $this->buscarArticulo();
 
         if (! $this->articulo) {
@@ -105,7 +127,7 @@ class TomarInventario extends Page
 
     public function cargarMovimientos(): void
     {
-        $this->movimientos = InventarioMovimiento::query()
+        $movimientos = InventarioMovimiento::query()
 
             ->where('inventario_id', $this->inventario)
 
@@ -116,5 +138,26 @@ class TomarInventario extends Page
             ->limit(10)
 
             ->get();
+
+        $articulos = DB::connection('mutualnew')
+            ->table('stkartic0')
+            ->whereIn('artcod', $movimientos->pluck('artcod'))
+            ->pluck('artdes', 'artcod');
+
+        foreach ($movimientos as $mov) {
+
+            $mov->artdes = $articulos[$mov->artcod] ?? '';
+        }
+
+        $this->movimientos = $movimientos;
+    }
+
+    protected function inventarioEstaAbierto(): bool
+    {
+        $estado = Inventario::query()
+            ->whereKey($this->inventario)
+            ->value('estado');
+
+        return $estado === 'abierto';
     }
 }

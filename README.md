@@ -1,59 +1,163 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+<p align="center"><img src="public/images/fondo.jpg" width="520" alt="Mutual La Emancipación"></p>
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+# Sistema de Inventario
 
-## About Laravel
+Aplicación web para **tomar el inventario por sucursal** de la Mutual La Emancipación. Permite abrir un inventario, cargar los artículos escaneados con la colectora, consultar los últimos movimientos y exportar los resultados a Excel.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y **Livewire**.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Funcionalidades
 
-## Learning Laravel
+### Autenticación
+- Login con los **usuarios del ERP** (base `siserpy`, tabla `sisusuar`): campos *Usuario* (`sisusrcod`) y *Contraseña*.
+- El proveedor de autenticación `siserpy` valida contra el campo `sisusrseg` sin hashing, para mantener la compatibilidad con las contraseñas del ERP.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+### Inventarios
+- **Alta / edición / baja** de inventarios con sucursal, fecha de inicio y estado (`abierto` / `cerrado`).
+- **Listado** con columnas ID, Sucursal, Estado (badge verde/rojo) y Fecha; búsqueda por sucursal, orden por ID descendente y **filtro de estado con "Abierto" por defecto**.
+- **Acciones por fila**:
+  - `Editar` — modificar la cabecera del inventario (incluido el estado).
+  - `Tomar` — abre la colectora; **solo visible mientras el inventario esté abierto**.
+  - `Exportar Excel` — resumen por artículo (`ARTICULO`, `DESCRIPCION`, `CANTIDAD` total).
+  - `Exportar Movimientos` — detalle (`ID`, `ARTICULO`, `DESCRIPCION`, `CODIGO_BARRA`, `CANTIDAD`, `UBICACION`, `USUARIO`, `FECHA`).
+- Para **cerrar** un inventario: `Editar` → estado *Cerrado*. Al cerrarlo desaparece el botón `Tomar` y la colectora rechaza cualquier carga (verificación del estado en el servidor, no solo en la interfaz).
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Colectora de Inventario (`/admin/tomar-inventario/{id}`)
+- Campo **Código de barras / artículo**: busca por `artbar.artcodbar` (lector) o por `stkartic0.artcod` (código interno). Si no existe, avisa *Artículo no encontrado*.
+- **Cantidad** (con decimales) y **Ubicación** (Góndola / Depósito / Exhibidor).
+- Muestra el artículo encontrado (código, descripción y cantidad) antes de guardar.
+- Al pulsar **GUARDAR** registra el movimiento y **vuelve a enfocar el campo de escaneo** para seguir sin tocar el mouse.
+- Sección **Últimos movimientos**: los 10 últimos artículos cargados **por el usuario logueado**, con su descripción.
+- Si el inventario está **cerrado**, no se muestran los inputs ni el botón de guardar y aparece el aviso correspondiente.
 
-## Laravel Sponsors
+### Dashboard
+- Pantalla de inicio con el **logo de la Mutual** a todo el ancho.
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+### Exportaciones a Excel
+- Generadas con `maatwebsite/excel` 4 (`InventarioExport` y `InventarioMovimientosExport`).
+- Las descripciones se resuelven contra `mutualnew.stkartic0`.
 
-### Premium Partners
+---
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+## Modelo de datos
 
-## Contributing
+| Tabla | Columnas |
+| --- | --- |
+| `inventarios` | `id`, `sucursal`, `fecha_inicio`, `estado`, `user_id`, `created_at`, `updated_at` |
+| `inventario_movimientos` | `id`, `inventario_id`, `artcod`, `codigo_barra`, `cantidad`, `ubicacion`, `usuario`, `created_at` |
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+> La descripción del artículo **no se almacena** en los movimientos: se resuelve en pantalla y en los Excel desde `mutualnew`.
 
-## Code of Conduct
+## Conexiones a bases de datos
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+| Conexión | Origen | Uso |
+| --- | --- | --- |
+| `default` | SQLite (`database/database.sqlite`) | Inventario de la aplicación (migraciones, sesiones, colas) |
+| `siserpy` | MySQL | Usuarios / login (`sisusuar`) |
+| `mutualnew` | MySQL | Artículos (`stkartic0`) y códigos de barras (`artbar`) |
 
-## Security Vulnerabilities
+---
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Stack tecnológico
 
-## License
+- PHP **^8.3** · Laravel **^13** · Filament **^5.9** · Livewire
+- `maatwebsite/excel` **^4.0** · PHPUnit **^12** · Vite (assets)
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Requisitos
+
+- PHP >= 8.3 con las extensiones `pdo_sqlite` y `pdo_mysql`.
+- Composer.
+- Node.js 20+ (sólo para compilar assets).
+- Acceso a las bases MySQL `siserpy` y `mutualnew`.
+
+## Instalación
+
+```bash
+git clone https://github.com/mcarabajal2020/Inventario.git
+cd Inventario
+
+composer install
+cp .env.example .env
+php artisan key:generate
+```
+
+Completar en `.env` las conexiones del ERP:
+
+```env
+DB_CONNECTION=sqlite
+
+DB_SISERPY_HOST=...
+DB_SISERPY_PORT=3306
+DB_SISERPY_DATABASE=...
+DB_SISERPY_USERNAME=...
+DB_SISERPY_PASSWORD=...
+
+DB_MUTUALNEW_HOST=...
+DB_MUTUALNEW_PORT=3306
+DB_MUTUALNEW_DATABASE=...
+DB_MUTUALNEW_USERNAME=...
+DB_MUTUALNEW_PASSWORD=...
+```
+
+Continuar con:
+
+```bash
+touch database/database.sqlite
+php artisan migrate --force
+
+npm install
+npm run build
+
+php artisan serve        # http://127.0.0.1:8000
+```
+
+> **Nota:** el servidor necesita acceso de red a las bases MySQL; sin ellas el login y la búsqueda de artículos no funcionan.
+
+---
+
+## Uso rápido
+
+1. Ingresar con un usuario del ERP.
+2. **Inventarios → + Nuevo**: cargar sucursal, fecha y estado *Abierto*.
+3. En el listado (filtra abiertos por defecto) presionar **Tomar**.
+4. Escanear el código de barras → verificar artículo → cantidad y ubicación → **GUARDAR**.
+5. Repetir; los últimos 10 movimientos aparecen abajo.
+6. **Editar** → estado *Cerrado* para finalizar la toma.
+7. **Exportar Excel** / **Exportar Movimientos** para descargar los resultados.
+
+---
+
+## Tests
+
+```bash
+php artisan test
+```
+
+12 tests que cubren: filtro de estado del listado, bloqueo de inventarios cerrados, descripciones en los últimos movimientos y el logo del dashboard.
+
+## Estructura
+
+```
+app/
+├── Exports/                  # InventarioExport, InventarioMovimientosExport
+├── Filament/
+│   ├── Pages/                # TomarInventario (colectora) y Login
+│   ├── Resources/Inventarios # CRUD + tabla + acciones
+│   └── Widgets/              # LogoMutual (dashboard)
+├── Models/                   # Inventario, InventarioMovimiento, User, Mutualnew\*
+└── Providers/                # Proveedor de autenticación siserpy
+resources/views/filament/     # Vistas de colectora y widget
+tests/Feature/                # Tests funcionales
+```
+
+## Consideraciones
+
+- Las contraseñas del ERP se comparan en texto plano (`str_contains` sobre `sisusrseg`): es un requisito de compatibilidad con el sistema existente.
+- `vendor/bin/pint --test` muestra deudas de estilo heredadas del código original; no se aplicó para no reescribir todo el proyecto.
+- El logo utilizado en el dashboard es `public/images/fondo.jpg`.
+
+## Licencia
+
+MIT.

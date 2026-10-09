@@ -68,7 +68,7 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 - Si la API contesta 401/403 se olvida la sesión, se vuelve a loguear y se reintenta **una sola vez**; si el login falla no se insiste durante 60 segundos. Si no hay sesión (401 sin credenciales) el aviso dice *"No se pudo iniciar sesión en la API del ERP. Revise su usuario y contraseña."*.
 - Si el ERP no responde, las pantallas muestran los listados vacíos con el aviso correspondiente en vez de un error 500. Además se marca la falla **30 segundos**: durante ese tiempo los listados fallan rápido (sin esperar el timeout de 20 s en cada render) y se vuelven a consultar solos.
 - Depósitos, proveedores, sucursales y numeración se cachean **30 minutos** para no consultar el ERP en cada render.
-- Variables en `.env`: `SIS_API_URL`, `SIS_API_TOKEN` (obligatorio: no está en el código), `SIS_EMPRESA`; opcionales `SIS_API_USER`, `SIS_API_PASSWORD`, `SIS_API_TIMEOUT`.
+- Variables en `.env`: `SIS_API_URL`, `SIS_API_TOKEN` (obligatorio: no está en el código), `SIS_EMPRESA`; opcionales `SIS_API_USER`, `SIS_API_PASSWORD`, `SIS_API_TIMEOUT`. Si falta alguna, las pantallas de recepción y transferencia muestran en rojo **cuál variable falta** (y la indicación de `php artisan config:clear` si la configuración quedó cacheada) en lugar del aviso genérico.
 
 ### Exportaciones a Excel
 - Generadas con `maatwebsite/excel` 4 (`InventarioExport` y `InventarioMovimientosExport`).

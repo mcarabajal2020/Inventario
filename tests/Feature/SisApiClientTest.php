@@ -211,4 +211,28 @@ class SisApiClientTest extends TestCase
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'numeracion/66/?succod=7'));
     }
+
+    public function test_avisa_cual_configuracion_falta_para_hablar_con_la_api(): void
+    {
+        config(['sis.token' => null, 'sis.empresa' => 'Mutual']);
+
+        $this->assertStringContainsString('SIS_API_TOKEN', (string) app(SisApiClient::class)->configFaltante());
+
+        config(['sis.token' => 'token-de-pruebas', 'sis.empresa' => null]);
+
+        $this->assertStringContainsString('SIS_EMPRESA', (string) app(SisApiClient::class)->configFaltante());
+
+        config(['sis.empresa' => 'Mutual']);
+
+        $this->assertNull(app(SisApiClient::class)->configFaltante());
+    }
+
+    public function test_sin_token_la_llamada_falla_con_el_mensaje_de_configuracion(): void
+    {
+        config(['sis.token' => null]);
+
+        $this->expectExceptionMessage('SIS_API_TOKEN');
+
+        app(SisApiClient::class)->depositos();
+    }
 }

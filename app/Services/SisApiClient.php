@@ -25,6 +25,26 @@ class SisApiClient
     }
 
     /**
+     * Configuración mínima para hablar con la API: si falta algo devuelve un
+     * mensaje claro (producción casi siempre arranca sin el token en `.env`
+     * o con la configuración cacheada).
+     */
+    public function configFaltante(): ?string
+    {
+        if (blank(config('sis.token'))) {
+            return 'Falta la variable SIS_API_TOKEN en el archivo .env de la aplicación. '
+                . 'Si ya está cargada, borre la caché de configuración (php artisan config:clear) y recargue.';
+        }
+
+        if (blank(config('sis.empresa'))) {
+            return 'Falta la variable SIS_EMPRESA en el archivo .env de la aplicación (ej.: Mutual). '
+                . 'Si ya está cargada, borre la caché de configuración (php artisan config:clear) y recargue.';
+        }
+
+        return null;
+    }
+
+    /**
      * Depósitos del ERP: [{depcod, depnom}, ...]
      */
     public function depositos(): array
@@ -535,6 +555,10 @@ class SisApiClient
 
     protected function llamar(string $metodo, string $url, array $data = [], bool $reintentado = false): mixed
     {
+        if ($falta = $this->configFaltante()) {
+            throw new Exception($falta);
+        }
+
         $absoluta = rtrim(config('sis.url'), '/') . $url;
 
         $autorizacion = $this->autorizacion();

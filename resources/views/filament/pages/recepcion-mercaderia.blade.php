@@ -21,7 +21,7 @@
                     </div>
 
                     <div class="text-sm text-danger-600 dark:text-danger-500">
-                        Los depósitos o proveedores vienen vacíos: revise la conexión con la API del ERP y recargue la página.
+                        {{ filled($errorApi) ? $errorApi : 'Los depósitos o proveedores vienen vacíos: revise la conexión con la API del ERP y recargue la página.' }}
                     </div>
 
                 </div>

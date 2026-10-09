@@ -362,4 +362,13 @@ class TransferenciaDepositosTest extends TestCase
             ->assertSee('Depósito Sucursal')
             ->assertDontSee('Actualizar cabecera');
     }
+
+    public function test_muestra_en_pantalla_si_falta_la_configuracion_de_la_api(): void
+    {
+        config(['sis.token' => null]);
+
+        Livewire::test(TransferenciaDepositos::class)
+            ->assertSee('SIS_API_TOKEN')
+            ->assertSee('config:clear');
+    }
 }

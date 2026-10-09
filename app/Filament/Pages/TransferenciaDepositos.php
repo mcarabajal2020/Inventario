@@ -43,6 +43,9 @@ class TransferenciaDepositos extends Page
     /** La cabecera se pliega para que en el móvil quede el campo de carga a la vista. */
     public bool $cabeceraVisible = true;
 
+    /** Último error de la API del ERP, para mostrarlo en la pantalla. */
+    public string $errorApi = '';
+
     public function mount(): void
     {
         $this->fecha = now()->format('Y-m-d');
@@ -57,6 +60,8 @@ class TransferenciaDepositos extends Page
             $this->api()->depositos();
             $this->api()->numeracion($this->depositoOrigen);
         } catch (Exception $e) {
+            $this->errorApi = $e->getMessage();
+
             $this->notificacion('API del ERP', $e->getMessage(), 'danger');
         }
     }
@@ -71,6 +76,8 @@ class TransferenciaDepositos extends Page
             return $this->api()->depositos();
         } catch (Exception $e) {
             Log::warning('SIS API en la pantalla de transferencias: ' . $e->getMessage());
+
+            $this->errorApi = $e->getMessage();
 
             return [];
         }

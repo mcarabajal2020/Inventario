@@ -1,6 +1,6 @@
 <x-filament-panels::page>
 
-    <div class="space-y-6">
+    <div class="space-y-12">
 
         <x-filament::section>
 
@@ -485,7 +485,7 @@
                 Últimas transferencias
             </x-slot>
 
-            <div class="overflow-x-auto">
+            <div class="hidden md:block overflow-x-auto">
 
                 <table class="w-full divide-y divide-gray-200 dark:divide-white/10">
 
@@ -588,6 +588,76 @@
                     </tbody>
 
                 </table>
+
+            </div>
+
+            <div class="space-y-4 md:hidden">
+
+                @forelse($this->ultimasTransferencias() as $transferenciaItem)
+
+                    <div class="rounded-xl border border-gray-200 p-4 dark:border-white/10">
+
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+
+                            <div class="font-semibold">
+                                {{ $transferenciaItem->fecha }}
+                            </div>
+
+                            @if($transferenciaItem->estado === 'finalizada')
+
+                                <x-filament::badge color="success">
+                                    Finalizada
+                                </x-filament::badge>
+
+                            @elseif($transferenciaItem->estado === 'error')
+
+                                <x-filament::badge color="danger">
+                                    Error
+                                </x-filament::badge>
+
+                            @else
+
+                                <x-filament::badge color="gray">
+                                    Borrador
+                                </x-filament::badge>
+
+                            @endif
+
+                        </div>
+
+                        <div class="mt-3 text-sm">
+                            <span class="font-medium">Origen:</span>
+                            {{ $transferenciaItem->deposito_origen_nom }}
+                        </div>
+
+                        <div class="mt-1 text-sm">
+                            <span class="font-medium">Destino:</span>
+                            {{ $transferenciaItem->deposito_destino_nom }}
+                        </div>
+
+                        <div class="mt-1 text-sm">
+                            <span class="font-medium">Comprobante:</span>
+                            {{ $transferenciaItem->cbtnro ?: $transferenciaItem->comprobante }}
+                        </div>
+
+                        @if(filled($transferenciaItem->mensaje))
+
+                            <div class="mt-1 text-sm">
+                                <span class="font-medium">Mensaje:</span>
+                                {{ $transferenciaItem->mensaje }}
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                @empty
+
+                    <div class="rounded-xl border border-gray-200 p-4 text-center text-sm text-gray-500 dark:border-white/10">
+                        Todavía no se registraron transferencias
+                    </div>
+
+                @endforelse
 
             </div>
 

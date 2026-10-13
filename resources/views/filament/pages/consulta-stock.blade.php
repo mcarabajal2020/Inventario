@@ -32,7 +32,7 @@
 
             </div>
 
-            <div class="mt-10 flex flex-wrap gap-4 md:mt-8 md:gap-3">
+            <div class="mt-20 flex flex-wrap gap-8 md:mt-8 md:gap-3">
 
                 <x-filament::button
                     wire:click="consultar"

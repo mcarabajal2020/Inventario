@@ -246,7 +246,8 @@
                             <x-filament::input
                                 type="text"
                                 wire:model.live.debounce.400ms="codigo"
-                                wire:keydown.enter="agregar"
+                                x-on:keydown.enter="$focus('#campo-cantidad')"
+                                id="campo-codigo"
                                 autofocus
                                 placeholder="Escanear código"
                             />
@@ -276,6 +277,7 @@
                                 step="0.01"
                                 wire:model="cantidad"
                                 wire:keydown.enter="agregar"
+                                id="campo-cantidad"
                             />
 
                         </x-filament::input.wrapper>

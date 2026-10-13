@@ -431,7 +431,7 @@ class RecepcionMercaderia extends Page
         $this->codigo = '';
         $this->cantidad = 1;
 
-        $this->notificacion('Artículo agregado', $artcod . ' (' . $this->detalles()->count() . ' renglones)', 'success');
+        $this->notificacion('Artículo agregado', $artcod . ' — ' . ($articulo['artdes'] ?? '') . ' (' . $this->detalles()->count() . ' renglones)', 'success');
 
         $this->dispatch('focus-input');
     }

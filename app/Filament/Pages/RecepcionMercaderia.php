@@ -205,7 +205,7 @@ class RecepcionMercaderia extends Page
         // el ERP (lo cargó otro sistema o se cargó directo en el ERP).
         // Si la consulta falla no se bloquea la carga.
         try {
-            $enErp = $this->comprobanteErp()->buscar((int) $this->ptovta, (int) $this->comprobante);
+            $enErp = $this->comprobanteErp()->buscar((int) $this->ptovta, (int) $this->comprobante, (int) $this->proveedor);
         } catch (Exception $e) {
             Log::warning('No se pudo validar el comprobante en el ERP: ' . $e->getMessage());
 

@@ -23,16 +23,28 @@ class ComprobanteErp
     /**
      * Datos del comprobante si ya está registrado en el ERP, o null si no
      * (o si la base no responde: en ese caso no se bloquea la carga).
+     *
+     * El ERP valida los duplicados por centro emisor + número + tipo de
+     * movimiento + proveedor, así que la búsqueda filtra por los mismos
+     * criterios: `cbtcod = 5` es recepción de mercadería y `ctacod` es
+     * el código del proveedor. Sin esos filtros, números bajos (88, 100…)
+     * aparecen repetidos con otros proveedores o tipos de comprobante.
      */
-    public function buscar(int $puntoDeVenta, int $comprobante): ?array
+    public function buscar(int $puntoDeVenta, int $comprobante, ?int $proveedorCod = null): ?array
     {
         try {
-            $fila = DB::connection('mutualnew')
+            $query = DB::connection('mutualnew')
                 ->table('comcbt')
-                ->select('cemcod', 'cbtnro', 'cbtfec', 'ctanom', 'usrregis')
+                ->select('cemcod', 'cbtnro', 'cbtcod', 'cbtfec', 'ctanom', 'ctacod', 'usrregis')
                 ->where('cemcod', $puntoDeVenta)
                 ->where('cbtnro', $comprobante)
-                ->first();
+                ->where('cbtcod', 5);
+
+            if (! is_null($proveedorCod)) {
+                $query->where('ctacod', $proveedorCod);
+            }
+
+            $fila = $query->first();
         } catch (Exception $e) {
             Log::warning('No se pudo consultar el comprobante en el ERP: ' . $e->getMessage());
 

@@ -165,9 +165,12 @@ php artisan migrate --force
 
 npm install
 npm run build
+npm run build:css   # regenera public/css/inventario.css (utilidades Tailwind de las vistas del panel)
 
 php artisan serve        # http://127.0.0.1:8000
 ```
+
+> **Nota:** el CSS del panel se sirve desde `public/css/inventario.css` (registrado como asset en `AdminPanelProvider`). Si se agregan o cambian clases Tailwind en los blades de Filament, volver a ejecutar `npm run build:css` y subir el archivo generado; no requiere Node en el servidor de producción.
 
 > **Nota:** el servidor necesita acceso de red a las bases MySQL; sin ellas el login y la búsqueda de artículos no funcionan.
 

@@ -4,9 +4,11 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
+        "build:css": "tailwindcss -i resources/css/inventario.css -o public/css/inventario.css --minify",
         "dev": "vite"
     },
     "devDependencies": {
+        "@tailwindcss/cli": "^4.3.3",
         "@tailwindcss/vite": "^4.0.0",
         "axios": "^1.11.0",
         "concurrently": "^9.0.1",

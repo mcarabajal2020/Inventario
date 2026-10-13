@@ -459,6 +459,30 @@ class RecepcionMercaderiaTest extends TestCase
         $this->assertDatabaseCount('recepciones', 1);
     }
 
+    public function test_no_inicia_si_la_api_del_sis_detecta_duplicado_en_paso2(): void
+    {
+        // La API del SIS detecta el duplicado al validar la cabecera (paso2),
+        // antes de que el usuario cargue los artículos.
+        $this->fakeSis([
+            '*/recepcion-mercaderia/paso2/*' => Http::response([
+                'message' => 'Se encontraron duplicados del número de comprobante, para el centro emisor y tipo de movimiento indicados.',
+            ]),
+        ]);
+
+        $component = Livewire::test(RecepcionMercaderia::class)
+            ->set('deposito', 'D1')
+            ->set('proveedor', 'P1')
+            ->set('ptovta', '3')
+            ->set('hoja', '1')
+            ->set('comprobante', '12315')
+            ->call('iniciar')
+            ->assertNotified('Comprobante duplicado en el ERP');
+
+        $this->assertNull($component->get('recepcion'));
+
+        $this->assertDatabaseCount('recepciones', 0);
+    }
+
     public function test_permite_reintentar_un_comprobante_que_fallo_por_otro_motivo(): void
     {
         $this->fakeSis();

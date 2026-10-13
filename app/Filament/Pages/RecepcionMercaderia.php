@@ -233,6 +233,21 @@ class RecepcionMercaderia extends Page
             return;
         }
 
+        // Validar con la API del SIS que el comprobante no esté duplicado
+        // antes de permitir cargar los artículos.
+        try {
+            $mensajePaso2 = $this->api()->recepcionPaso2($this->fecha, $this->ptovta, $this->hoja);
+
+            if (str_contains($mensajePaso2, 'duplicados del número de comprobante')) {
+                $this->notificacion('Comprobante duplicado en el ERP', $mensajePaso2, 'danger');
+
+                return;
+            }
+        } catch (Exception $e) {
+            // Si la API no responde no se bloquea la carga: se validará al finalizar.
+            Log::warning('No se pudo validar el comprobante en la API del SIS: ' . $e->getMessage());
+        }
+
         try {
             $deposito = collect($this->api()->depositos())->firstWhere('depcod', $this->deposito);
             $proveedor = collect($this->api()->proveedores())->firstWhere('ctacod', $this->proveedor);

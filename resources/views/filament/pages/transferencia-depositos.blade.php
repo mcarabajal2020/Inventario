@@ -64,7 +64,7 @@
 
             @else
 
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-4 md:gap-4">
 
                 <div>
 
@@ -177,7 +177,7 @@
 
             </div>
 
-            <div class="mt-8 flex flex-wrap gap-3">
+            <div class="mt-10 flex flex-wrap gap-4 md:mt-8 md:gap-3">
 
                 <x-filament::button
                     wire:click="iniciar"
@@ -233,7 +233,7 @@
 
             @if($transferencia)
 
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-4 md:gap-4">
 
                     <div class="md:col-span-2">
 
@@ -448,7 +448,7 @@
 
                 </div>
 
-                <div class="mt-6 flex flex-wrap gap-3">
+                <div class="mt-8 flex flex-wrap gap-4 md:mt-6 md:gap-3">
 
                     <x-filament::button
                         wire:click="finalizar"

@@ -35,6 +35,9 @@ class TransferenciaDepositos extends Page
 
     public string $codigo = '';
 
+    /** Descripción del artículo escaneado, para mostrarla antes de confirmar. */
+    public string $descripcionArticulo = '';
+
     public float $cantidad = 1;
 
     /** Coincidencias de la búsqueda cuando hay más de un artículo. */
@@ -207,6 +210,35 @@ class TransferenciaDepositos extends Page
         ])->filter()->implode(' · ');
     }
 
+    /**
+     * Cuando cambia el código escaneado se busca la descripción del artículo
+     * para mostrarla antes de confirmar la cantidad.
+     */
+    public function updatedCodigo(): void
+    {
+        $this->descripcionArticulo = '';
+
+        if (blank($this->codigo) || ! $this->transferencia) {
+            return;
+        }
+
+        $transferencia = Transferencia::find($this->transferencia);
+
+        if (! $transferencia) {
+            return;
+        }
+
+        try {
+            $articulos = $this->api()->stockPorDeposito($this->codigo, $transferencia->deposito_origen_cod);
+        } catch (Exception) {
+            return;
+        }
+
+        if (count($articulos) === 1) {
+            $this->descripcionArticulo = (string) ($articulos[0]['articulo']['descripcion'] ?? '');
+        }
+    }
+
     public function agregar(): void
     {
         if (! $this->transferencia) {
@@ -312,6 +344,7 @@ class TransferenciaDepositos extends Page
         ]);
 
         $this->codigo = '';
+        $this->descripcionArticulo = '';
         $this->cantidad = 1;
 
         $this->notificacion('Artículo agregado', $artcod . ' — ' . ($artdes ?? '') . ' (' . $this->detalles()->count() . ' renglones)', 'success');

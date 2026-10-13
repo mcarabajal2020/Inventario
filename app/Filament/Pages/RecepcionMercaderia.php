@@ -43,6 +43,9 @@ class RecepcionMercaderia extends Page
 
     public string $codigo = '';
 
+    /** Descripción del artículo escaneado, para mostrarla antes de confirmar. */
+    public string $descripcionArticulo = '';
+
     public float $cantidad = 1;
 
     /** Coincidencias de la búsqueda cuando hay más de un artículo. */
@@ -336,6 +339,29 @@ class RecepcionMercaderia extends Page
             ->first();
     }
 
+    /**
+     * Cuando cambia el código escaneado se busca la descripción del artículo
+     * para mostrarla antes de confirmar la cantidad.
+     */
+    public function updatedCodigo(): void
+    {
+        $this->descripcionArticulo = '';
+
+        if (blank($this->codigo) || ! $this->recepcion) {
+            return;
+        }
+
+        try {
+            $articulos = $this->api()->buscarArticulo($this->codigo);
+        } catch (Exception) {
+            return;
+        }
+
+        if (count($articulos) === 1) {
+            $this->descripcionArticulo = (string) ($articulos[0]['artdes'] ?? '');
+        }
+    }
+
     public function agregar(): void
     {
         if (! $this->recepcion) {
@@ -429,6 +455,7 @@ class RecepcionMercaderia extends Page
         ]);
 
         $this->codigo = '';
+        $this->descripcionArticulo = '';
         $this->cantidad = 1;
 
         $this->notificacion('Artículo agregado', $artcod . ' — ' . ($articulo['artdes'] ?? '') . ' (' . $this->detalles()->count() . ' renglones)', 'success');

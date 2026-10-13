@@ -245,13 +245,21 @@
 
                             <x-filament::input
                                 type="text"
-                                wire:model="codigo"
+                                wire:model.live.debounce.400ms="codigo"
                                 wire:keydown.enter="agregar"
                                 autofocus
                                 placeholder="Escanear código"
                             />
 
                         </x-filament::input.wrapper>
+
+                        @if(filled($descripcionArticulo))
+
+                            <div class="mt-2 rounded-lg bg-info-50 px-3 py-2 text-sm font-medium text-info-700 dark:bg-info-900/20 dark:text-info-400">
+                                {{ $descripcionArticulo }}
+                            </div>
+
+                        @endif
 
                     </div>
 

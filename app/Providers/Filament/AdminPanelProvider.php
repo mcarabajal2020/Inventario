@@ -38,7 +38,11 @@ class AdminPanelProvider extends PanelProvider
         ->widgets([
         ])
         ->assets([
-            Css::make('inventario')->relativePublicPath('css/inventario.css'),
+            // El path es el archivo ya publicado: filament:assets (corre en
+            // `composer install` vía filament:upgrade) exige un $from string
+            // para cada style; sin él la copia recibe null y truena.
+            Css::make('inventario', public_path('css/inventario.css'))
+                ->relativePublicPath('css/inventario.css'),
         ])
         ->middleware([
             \Illuminate\Cookie\Middleware\EncryptCookies::class,

@@ -163,13 +163,13 @@ class SisApiClient
     }
 
     /**
-     * Stock de un artículo en un depósito determinado.
+     * Stock de un artículo en un depósito determinado (solo artículos activos).
      */
     public function stockPorDeposito(string $codigo, string $depcod): array
     {
         $codigo = trim($codigo);
 
-        $base = "/{$this->empresa()}/stock/consulta-stock/?";
+        $base = "/{$this->empresa()}/stock/consulta-stock/?inactivo=0&";
 
         $urls = [
             "{$base}artcodbar={$codigo}&depcod={$depcod}",
@@ -190,7 +190,7 @@ class SisApiClient
 
     /**
      * Stock de un artículo en todos los depósitos, sin filtrar por depósito
-     * (lo usa la pantalla de consulta de stock).
+     * (lo usa la pantalla de consulta de stock). Solo artículos activos.
      *
      * Devuelve una fila por depósito con el código y la descripción del
      * artículo, sumando las filas repetidas que devuelve el ERP.
@@ -203,7 +203,7 @@ class SisApiClient
             return [];
         }
 
-        $base = "/{$this->empresa()}/stock/consulta-stock/?";
+        $base = "/{$this->empresa()}/stock/consulta-stock/?inactivo=0&";
 
         $urls = [
             "{$base}artcodbar={$codigo}",

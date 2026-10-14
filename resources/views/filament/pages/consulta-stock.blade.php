@@ -55,7 +55,84 @@
 
             </div>
 
-            @if(! $articulo && count($saldos) === 0)
+            @if(count($this->resultados))
+
+                <div class="mt-6 rounded-xl border border-info-300 bg-info-50 p-4 dark:border-info-700 dark:bg-info-900/20">
+
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+
+                        <div class="font-semibold text-info-700 dark:text-info-400">
+
+                            {{ count($this->resultados) }} artículos coinciden con "{{ $codigo }}"
+
+                        </div>
+
+                        <x-filament::button
+                            wire:click="descartarResultados"
+                            color="gray"
+                            size="sm"
+                        >
+                            Cerrar
+                        </x-filament::button>
+
+                    </div>
+
+                    <div class="mt-3 max-h-64 overflow-y-auto">
+
+                        <table class="w-full divide-y divide-info-200 dark:divide-info-800">
+
+                            <thead>
+
+                                <tr class="text-left text-xs font-semibold text-info-700 dark:text-info-400">
+
+                                    <th class="px-2 py-2">Código</th>
+                                    <th class="px-2 py-2">Descripción</th>
+                                    <th class="px-2 py-2"></th>
+
+                                </tr>
+
+                            </thead>
+
+                            <tbody class="divide-y divide-info-100 dark:divide-info-800/60">
+
+                                @foreach($this->resultados as $resultado)
+
+                                    <tr class="text-sm">
+
+                                        <td class="px-2 py-2 font-medium">
+                                            {{ $resultado['artcod'] }}
+                                        </td>
+
+                                        <td class="px-2 py-2">
+                                            {{ $resultado['artdes'] }}
+                                        </td>
+
+                                        <td class="px-2 py-2 text-right">
+
+                                            <x-filament::button
+                                                wire:click="seleccionar('{{ $resultado['artcod'] }}')"
+                                                size="sm"
+                                            >
+                                                Ver stock
+                                            </x-filament::button>
+
+                                        </td>
+
+                                    </tr>
+
+                                @endforeach
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+            @endif
+
+            @if(! $articulo && count($saldos) === 0 && count($this->resultados) === 0)
 
                 <div class="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
 

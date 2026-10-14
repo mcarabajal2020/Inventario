@@ -28,12 +28,32 @@ class ConsultaStock extends Page
     /** Stock por depósito: una fila por depósito. */
     public array $saldos = [];
 
+    /** Coincidencias cuando la búsqueda por descripción trae varios artículos. */
+    public array $resultados = [];
+
     public function consultar(): void
     {
         if (blank($this->codigo)) {
             $this->notificacion('Sin código', 'Escanee el código de barras o el código del artículo.', 'danger');
 
             return;
+        }
+
+        $this->resultados = [];
+
+        // Búsqueda por descripción: verificar si hay varias coincidencias.
+        if (preg_match('/[A-Za-z]/', $this->codigo)) {
+            try {
+                $articulos = $this->api()->buscarArticulo($this->codigo);
+            } catch (Exception) {
+                $articulos = [];
+            }
+
+            if (count($articulos) > 1) {
+                $this->resultados = $articulos;
+
+                return;
+            }
         }
 
         try {
@@ -58,6 +78,62 @@ class ConsultaStock extends Page
         $this->codigo = '';
 
         $this->dispatch('focus-input');
+    }
+
+    /**
+     * Muestra el stock del artículo elegido de la lista de coincidencias.
+     */
+    public function seleccionar(string $artcod): void
+    {
+        $articulo = collect($this->resultados)->firstWhere('artcod', $artcod);
+
+        $this->resultados = [];
+
+        if (! $articulo) {
+            return;
+        }
+
+        $this->mostrarStock($artcod, (string) ($articulo['artdes'] ?? ''));
+    }
+
+    /**
+     * Busca y muestra el stock de un artículo por su código exacto.
+     */
+    protected function mostrarStock(string $artcod, string $artdes): void
+    {
+        try {
+            $saldos = $this->api()->stockPorArticulo($artcod);
+        } catch (Exception $e) {
+            $this->notificacion('API del ERP', $e->getMessage(), 'danger');
+
+            return;
+        }
+
+        if (empty($saldos)) {
+            $this->articulo = ['artcod' => $artcod, 'artdes' => $artdes];
+            $this->saldos = [];
+            $this->codigo = '';
+
+            $this->notificacion('Sin stock', 'El artículo existe pero no tiene stock en ningún depósito.', 'warning');
+
+            $this->dispatch('focus-input');
+
+            return;
+        }
+
+        $this->articulo = [
+            'artcod' => $saldos[0]['artcod'],
+            'artdes' => $saldos[0]['artdes'],
+        ];
+        $this->saldos = $saldos;
+        $this->codigo = '';
+
+        $this->dispatch('focus-input');
+    }
+
+    public function descartarResultados(): void
+    {
+        $this->resultados = [];
     }
 
     /**
@@ -96,7 +172,7 @@ class ConsultaStock extends Page
 
     public function limpiar(): void
     {
-        $this->reset('codigo', 'articulo', 'saldos');
+        $this->reset('codigo', 'articulo', 'saldos', 'resultados');
 
         $this->dispatch('focus-input');
     }

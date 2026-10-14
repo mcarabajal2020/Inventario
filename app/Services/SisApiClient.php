@@ -5,6 +5,7 @@ namespace App\Services;
 use Exception;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -137,7 +138,7 @@ class SisApiClient
     {
         $codigo = trim($codigo);
 
-        $base = "/{$this->empresa()}/articulos/?inactivo=0&";
+        $base = "/{$this->empresa()}/articulos/?";
 
         if ($codigo === '') {
             return [];
@@ -155,7 +156,7 @@ class SisApiClient
             $data = $this->get($url);
 
             if (! empty($data)) {
-                return $this->collection($data);
+                return $this->filtrarActivos($this->collection($data));
             }
         }
 
@@ -163,13 +164,13 @@ class SisApiClient
     }
 
     /**
-     * Stock de un artículo en un depósito determinado (solo artículos activos).
+     * Stock de un artículo en un depósito determinado.
      */
     public function stockPorDeposito(string $codigo, string $depcod): array
     {
         $codigo = trim($codigo);
 
-        $base = "/{$this->empresa()}/stock/consulta-stock/?inactivo=0&";
+        $base = "/{$this->empresa()}/stock/consulta-stock/?";
 
         $urls = [
             "{$base}artcodbar={$codigo}&depcod={$depcod}",
@@ -181,7 +182,7 @@ class SisApiClient
             $data = $this->get($url);
 
             if (! empty($data)) {
-                return $this->collection($data);
+                return $this->filtrarActivos($this->collection($data));
             }
         }
 
@@ -190,7 +191,7 @@ class SisApiClient
 
     /**
      * Stock de un artículo en todos los depósitos, sin filtrar por depósito
-     * (lo usa la pantalla de consulta de stock). Solo artículos activos.
+     * (lo usa la pantalla de consulta de stock).
      *
      * Devuelve una fila por depósito con el código y la descripción del
      * artículo, sumando las filas repetidas que devuelve el ERP.
@@ -203,7 +204,7 @@ class SisApiClient
             return [];
         }
 
-        $base = "/{$this->empresa()}/stock/consulta-stock/?inactivo=0&";
+        $base = "/{$this->empresa()}/stock/consulta-stock/?";
 
         $urls = [
             "{$base}artcodbar={$codigo}",
@@ -215,11 +216,62 @@ class SisApiClient
             $data = $this->get($url);
 
             if (! empty($data)) {
-                return $this->agruparPorDeposito($this->collection($data));
+                $filtrado = $this->filtrarActivos($this->collection($data));
+
+                if (empty($filtrado)) {
+                    continue;
+                }
+
+                return $this->agruparPorDeposito($filtrado);
             }
         }
 
         return [];
+    }
+
+    /**
+     * Excluye los artículos inactivos de una lista devuelta por la API.
+     *
+     * La API no siempre aplica el filtro inactivo, así que se verifica
+     * contra la tabla stkartic0 de la base del ERP.
+     */
+    protected function filtrarActivos(array $filas): array
+    {
+        if (empty($filas)) {
+            return $filas;
+        }
+
+        $codigos = [];
+
+        foreach ($filas as $fila) {
+            $artcod = $fila['artcod'] ?? ($fila['articulo']['codigo'] ?? null);
+
+            if (filled($artcod)) {
+                $codigos[] = (string) $artcod;
+            }
+        }
+
+        if (empty($codigos)) {
+            return $filas;
+        }
+
+        $inactivos = DB::connection('mutualnew')
+            ->table('stkartic0')
+            ->whereIn('artcod', $codigos)
+            ->where('inactivo', 1)
+            ->pluck('artcod')
+            ->map(fn ($c) => (string) $c)
+            ->all();
+
+        if (empty($inactivos)) {
+            return $filas;
+        }
+
+        return array_values(array_filter($filas, function ($fila) use ($inactivos) {
+            $artcod = (string) ($fila['artcod'] ?? ($fila['articulo']['codigo'] ?? ''));
+
+            return ! in_array($artcod, $inactivos);
+        }));
     }
 
     /**

@@ -53,11 +53,11 @@ class SisApiClient
     }
 
     /**
-     * Proveedores del ERP: [{ctacod, ctanom}, ...]
+     * Proveedores del ERP: [{ctacod, ctanom}, ...] — excluye las cuentas inactivas.
      */
     public function proveedores(): array
     {
-        return $this->desdeCache('sis.proveedores', fn () => $this->collection($this->get("/{$this->empresa()}/compras-proveedores/cuentas/?ordering=ctanom")));
+        return $this->desdeCache('sis.proveedores', fn () => $this->collection($this->get("/{$this->empresa()}/compras-proveedores/cuentas/?inactivo=0&ordering=ctanom")));
     }
 
     /**

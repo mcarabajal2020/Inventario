@@ -39,7 +39,7 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 - Cabecera de la factura: **fecha, depósito, proveedor, punto de venta, hoja y comprobante** (depósitos y proveedores se leen de la API del ERP). El proveedor se puede **buscar por nombre, CUIT o número de cuenta**: al tipear se filtra el desplegable localmente (la lista de 3.095 cuentas viene cacheada 30 minutos), cada opción muestra *nombre (cuenta N - CUIT N)*, si no hay coincidencias se avisa y el proveedor ya elegido se mantiene visible aunque no coincida. El campo **hoja** nace con `1` y vuelve a `1` al cancelar o finalizar.
 - Al pulsar **INICIAR RECEPCIÓN** se valida que el **comprobante ya no esté cargado** por ningún usuario (mismo punto de venta + hoja + comprobante, comparados como números: `0001` = `1`). Si está, no se abre la carga y se avisa quién lo cargó, cuándo y en qué estado. También corta el comprobante que quedó en estado `error` cuando el ERP lo rechazó por duplicado (*"Se encontraron duplicados del número de comprobante…"*), porque reintentar siempre termina en el mismo error; los demás errores (p. ej. proveedor inexistente) sí permiten reintentar.
 - Además se consulta el **comprobante en el ERP** contra `mutualnew.comcbt` (`cemcod` = punto de venta, `cbtnro` = número; ~2 ms por el índice primario): si ya existe —aunque se haya cargado desde otro sistema o directo en el ERP— no se abre la carga y se avisa fecha, proveedor y usuario que lo registró. La API del SIS no expone esa consulta (el `GET` de `recepcion-mercaderia/` da 500 y el índice del módulo sólo publica `zonas` y `cuentas`). Si la base del negocio no responde, no se bloquea la carga.
-- Al escanear, el artículo se busca en `/{empresa}/articulos/` (código de barras → código interno → descripción). Si la búsqueda trae **varios artículos** (típico al buscar por descripción) se muestra una lista con código, descripción y stock para elegir cuál agregar; si hay uno solo se agrega directo. Cada captura genera **un renglón nuevo**, aunque se repita el artículo (no se suman): *Quitar* borra sólo ese renglón y el envío al ERP lleva un renglón por cada uno.
+- Al escanear, el artículo se busca en `/{empresa}/articulos/` (código de barras → código interno → descripción) y se muestra la **descripción debajo del campo** antes de cargar la cantidad. Si el código contiene letras y la búsqueda trae **varios artículos** se muestra una lista con código y descripción para elegir cuál agregar; si hay uno solo se muestra directo. **Enter en el código pasa al campo de cantidad** (el colector manda Enter al escanear); **Enter en la cantidad agrega el artículo**. Cada captura genera **un renglón nuevo**, aunque se repita el artículo (no se suman): *Quitar* borra sólo ese renglón y el envío al ERP lleva un renglón por cada uno.
 - Botón **CANCELAR CARGA** borra el borrador; **GUARDAR EN EL ERP** ejecuta los 3 pasos de la API (`paso1` → `paso2` → `paso3`) con la fecha en formato `d-m-Y`.
 - Se detectan los errores conocidos (`El proveedor no se encontró.`, `Error al guardar informe de recepción`, comprobante duplicado / manual) y el estado queda `finalizada` o `error`.
 - Sección **Últimas recepciones**: historial con estado y mensaje del ERP; el comprobante se muestra como `punto de venta-comprobante / hoja` (ej.: `4-12345 / 7`).
@@ -49,7 +49,7 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 ### Transferencia entre Depósitos (`/admin/transferencias`)
 - Cabecera: **fecha, depósito origen, depósito destino** y comprobante.
 - El comprobante es **obligatorio sólo si la numeración del ERP es manual** (`/{empresa}/stock/movimientos/numeracion/66/?succod=...`, con la sucursal del depósito seleccionado); si es automática lo asigna el ERP.
-- Al escanear se consulta el stock en el depósito origen (`/{empresa}/stock/consulta-stock/`); repetir el artículo genera **un renglón nuevo** (no se suma la cantidad) y *Quitar* borra sólo ese renglón. Si la búsqueda trae **varios artículos** se muestra la lista con código, descripción y stock para elegir cuál agregar.
+- Al escanear se consulta el stock en el depósito origen (`/{empresa}/stock/consulta-stock/`), se muestra la **descripción debajo del campo** antes de cargar la cantidad y **Enter pasa al campo de cantidad**. Repetir el artículo genera **un renglón nuevo** (no se suma la cantidad) y *Quitar* borra sólo ese renglón. Si la búsqueda trae **varios artículos** se muestra la lista con código, descripción y stock para elegir cuál agregar.
 - **GUARDAR EN EL ERP** envía `POST /{empresa}/stock/movimientos/` (`tmscod: 66`) y guarda el `cbtnro` devuelto.
 - Origen y destino deben ser distintos; historial de las últimas transferencias con estado y mensaje.
 - La cabecera también se **pliega** con el botón *Ocultar cabecera* (y sola al iniciar la transferencia): resumen de una línea (fecha · origen → destino · comprobante) para que el campo de escaneo quede arriba sin scroll en el móvil.
@@ -58,6 +58,7 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 - Al escanear el código de barras o el código del artículo se muestra el **stock de cada depósito** (`GET /{empresa}/stock/consulta-stock/` sin `depcod`), con una fila por depósito y total al pie.
 - En la vista se muestran el **código y la descripción** del artículo consultado, tomados de la respuesta del ERP.
 - El ERP devuelve varias filas por depósito (por lote o ubicación): se **suman** y se ordenan por nombre de depósito.
+- Si la búsqueda por descripción trae **varios artículos** se muestra una lista con código y descripción para elegir cuál consultar; si hay uno solo va directo al stock.
 - Si el artículo no tiene stock en ningún depósito se busca igual en `/{empresa}/articulos/` para mostrar su código y descripción con el aviso *Sin stock en ningún depósito*; si no existe, avisa *Código no encontrado*.
 - Si el ERP no responde muestra el aviso correspondiente en lugar de un error.
 
@@ -68,6 +69,7 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 - Si la API contesta 401/403 se olvida la sesión, se vuelve a loguear y se reintenta **una sola vez**; si el login falla no se insiste durante 60 segundos. Si no hay sesión (401 sin credenciales) el aviso dice *"No se pudo iniciar sesión en la API del ERP. Revise su usuario y contraseña."*.
 - Si el ERP no responde, las pantallas muestran los listados vacíos con el aviso correspondiente en vez de un error 500. Además se marca la falla **30 segundos**: durante ese tiempo los listados fallan rápido (sin esperar el timeout de 20 s en cada render) y se vuelven a consultar solos.
 - Depósitos, proveedores, sucursales y numeración se cachean **30 minutos** para no consultar el ERP en cada render.
+- **Artículos y cuentas inactivos excluidos**: la API no aplica el filtro `inactivo`, así que después de cada respuesta se verifican los códigos contra `mutualnew.stkartic0.artcod` / `mutualnew.cctcuent.ctacod` y se descartan los que tienen `inactivo = 1`. Aplica a `buscarArticulo`, `stockPorDeposito`, `stockPorArticulo` y `proveedores`.
 - Variables en `.env`: `SIS_API_URL`, `SIS_API_TOKEN` (obligatorio: no está en el código), `SIS_EMPRESA`; opcionales `SIS_API_USER`, `SIS_API_PASSWORD`, `SIS_API_TIMEOUT`. Si falta alguna, las pantallas de recepción y transferencia muestran en rojo **cuál variable falta** (y la indicación de `php artisan config:clear` si la configuración quedó cacheada) en lugar del aviso genérico.
 
 ### Exportaciones a Excel
@@ -78,9 +80,110 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 
 ## Modelo de datos
 
+### Diagrama ERD
+
+```mermaid
+erDiagram
+    users {
+        id PK
+        name
+        email
+        password
+        sisusrcod "código usuario ERP"
+        sisusrseg "clave ERP (texto plano)"
+        created_at
+        updated_at
+    }
+
+    inventarios {
+        id PK
+        sucursal
+        fecha_inicio "datetime"
+        fecha_fin "datetime, nullable"
+        estado "abierto | cerrado"
+        user_id FK
+        created_at
+        updated_at
+    }
+
+    inventario_movimientos {
+        id PK
+        inventario_id FK
+        artcod "código artículo"
+        codigo_barra "nullable"
+        cantidad "decimal(12,2)"
+        ubicacion "nullable"
+        usuario
+        created_at
+    }
+
+    recepciones {
+        id PK
+        fecha "date"
+        deposito_cod
+        deposito_nom
+        proveedor_cod
+        proveedor_nom
+        ptovta "punto de venta"
+        hoja
+        comprobante
+        estado "borrador | finalizada | error"
+        mensaje "nullable"
+        user_id FK "nullable"
+        created_at
+        updated_at
+    }
+
+    recepcion_detalles {
+        id PK
+        recepcion_id FK
+        artcod
+        artdes "nullable"
+        cantidad "decimal(12,2)"
+        created_at
+        updated_at
+    }
+
+    transferencias {
+        id PK
+        fecha "date"
+        deposito_origen_cod
+        deposito_origen_nom
+        deposito_destino_cod
+        deposito_destino_nom
+        comprobante "nullable"
+        cbtnro "nullable, # comprobante ERP"
+        estado "borrador | finalizada | error"
+        mensaje "nullable"
+        user_id FK "nullable"
+        created_at
+        updated_at
+    }
+
+    transferencia_detalles {
+        id PK
+        transferencia_id FK
+        artcod
+        artdes "nullable"
+        cantidad "decimal(12,2)"
+        created_at
+        updated_at
+    }
+
+    users ||--o{ inventarios : "crea"
+    inventarios ||--o{ inventario_movimientos : "registra"
+    users ||--o{ recepciones : "carga"
+    recepciones ||--o{ recepcion_detalles : "tiene"
+    users ||--o{ transferencias : "carga"
+    transferencias ||--o{ transferencia_detalles : "tiene"
+```
+
+### Tablas
+
 | Tabla | Columnas |
 | --- | --- |
-| `inventarios` | `id`, `sucursal`, `fecha_inicio`, `estado`, `user_id`, `created_at`, `updated_at` |
+| `users` | `id`, `name`, `email`, `password`, `sisusrcod`, `sisusrseg`, timestamps |
+| `inventarios` | `id`, `sucursal`, `fecha_inicio`, `fecha_fin`, `estado`, `user_id`, timestamps |
 | `inventario_movimientos` | `id`, `inventario_id`, `artcod`, `codigo_barra`, `cantidad`, `ubicacion`, `usuario`, `created_at` |
 | `recepciones` | `id`, `fecha`, `deposito_cod`, `deposito_nom`, `proveedor_cod`, `proveedor_nom`, `ptovta`, `hoja`, `comprobante`, `estado`, `mensaje`, `user_id`, timestamps |
 | `recepcion_detalles` | `id`, `recepcion_id`, `artcod`, `artdes`, `cantidad`, timestamps |
@@ -88,6 +191,16 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 | `transferencia_detalles` | `id`, `transferencia_id`, `artcod`, `artdes`, `cantidad`, timestamps |
 
 > La descripción del artículo **no se almacena** en los movimientos de inventario: se resuelve en pantalla y en los Excel desde `mutualnew`. En recepciones y transferencias sí se guarda `artdes` para el historial.
+
+### Tablas del ERP (`mutualnew`)
+
+| Tabla | Uso |
+| --- | --- |
+| `stkartic0` | Artículos (`artcod`, `artdes`, `inactivo`) — se usa para filtrar inactivos |
+| `artbar` | Códigos de barras (`artcodbar` → `artcod`) |
+| `comcbt` | Comprobantes de compras (`cemcod`, `cbtnro`, `cbtfec`, `ctacod`) — valida duplicados |
+| `cctcuent` | Cuentas / proveedores (`ctacod`, `ctanom`, `inactivo`) — se usa para filtrar inactivos |
+| `sisusuar` | Usuarios del ERP (`sisusrcod`, `sisusrseg`) — login |
 
 ## Conexiones a bases de datos
 
@@ -188,12 +301,12 @@ php artisan serve        # http://127.0.0.1:8000
 
 ### Recepción de mercadería
 1. **Recepción de Mercadería** → cargar fecha, depósito, proveedor (buscar por nombre, CUIT o número de cuenta), punto de venta, hoja y comprobante → **Iniciar recepción**.
-2. Escanear los artículos y confirmar la cantidad (cada captura es un renglón).
+2. Escanear el artículo → **Enter** (salta a cantidad) → cargar cantidad → **Enter** (agrega el renglón). Repetir.
 3. **GUARDAR EN EL ERP** y verificar el estado en *Últimas recepciones*.
 
 ### Transferencia entre depósitos
 1. **Transferencia entre Depósitos** → fecha, depósito origen y destino (+ comprobante si la numeración es manual) → **Iniciar transferencia**.
-2. Escanear los artículos que salen del depósito origen.
+2. Escanear → **Enter** → cantidad → **Enter**. Repetir.
 3. **GUARDAR EN EL ERP**: se guarda el número de comprobante (`cbtnro`) devuelto por la API.
 
 ### Consulta de stock
@@ -209,7 +322,7 @@ php artisan serve        # http://127.0.0.1:8000
 php artisan test
 ```
 
-72 tests que cubren: filtro de estado del listado, bloqueo de inventarios cerrados, descripciones en los últimos movimientos, el logo del dashboard, la zona horaria del servidor (`APP_TIMEZONE`) en los registros, la interfaz en español (`APP_LOCALE=es`, listado y validaciones), la sesión de la API del SIS (usuario logueado, cacheo, respaldo en `.env`, aviso cuando faltan credenciales y marca de falla cuando el ERP no responde) y los flujos de recepción de mercadería (hoja por defecto, comprobante duplicado local y comprobante ya existente en el ERP, búsqueda de proveedor por CUIT o número de cuenta), transferencia entre depósitos y consulta de stock (agrupación por depósito y artículos sin stock), con `Http::fake()` sobre la API del ERP. En recepción y transferencia se verifica además que **cada captura sea un renglón** (aunque se repita el artículo), que *Quitar* borre sólo ese renglón, que al finalizar se envíe un renglón por cada captura y que la **cabecera se pueda plegar/desplegar** (queda plegada con resumen al iniciar).
+81 tests que cubren: filtro de estado del listado, bloqueo de inventarios cerrados, descripciones en los últimos movimientos, el logo del dashboard, la zona horaria del servidor (`APP_TIMEZONE`) en los registros, la interfaz en español (`APP_LOCALE=es`, listado y validaciones), la sesión de la API del SIS (usuario logueado, cacheo, respaldo en `.env`, aviso cuando faltan credenciales y marca de falla cuando el ERP no responde) y los flujos de recepción de mercadería (hoja por defecto, comprobante duplicado local, comprobante ya existente en el ERP y duplicado detectado por la API en paso2, búsqueda de proveedor por CUIT o número de cuenta), transferencia entre depósitos y consulta de stock (agrupación por depósito, artículos sin stock y **lista de coincidencias cuando la búsqueda por descripción trae varios artículos**), con `Http::fake()` sobre la API del ERP. En recepción y transferencia se verifica además que **cada captura sea un renglón** (aunque se repita el artículo), que *Quitar* borre sólo ese renglón, que al finalizar se envíe un renglón por cada captura y que la **cabecera se pueda plegar/desplegar** (queda plegada con resumen al iniciar).
 
 ## Estructura
 

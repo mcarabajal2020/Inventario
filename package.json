@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "build:css": "tailwindcss -i resources/css/inventario.css -o public/css/inventario.css --minify",
+        "build:css": "tailwindcss -i resources/css/inventario.css -o public/css/inventario.css --minify && npm run downlevel:css",
+        "downlevel:css": "node scripts/downlevel-css.mjs public/css/inventario.css public/css/filament/filament/app.css",
         "dev": "vite"
     },
     "devDependencies": {

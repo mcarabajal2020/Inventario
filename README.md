@@ -347,6 +347,14 @@ tests/Feature/                # Tests funcionales
 - `vendor/bin/pint --test` muestra deudas de estilo heredadas del código original; no se aplicó para no reescribir todo el proyecto.
 - El logo utilizado en el dashboard es `public/images/fondo.jpg`.
 
+### Compatibilidad con Chrome 99+
+
+La app soporta Chrome **99 o superior** (navegadores de escritorios lentos de las cooperativas). Filament 5 y Tailwind 4 generan CSS y JS que usan features más nuevas de las que ese piso permite; para cerrar la brecha:
+
+- `public/js/compat-polyfills.js` (cargado en el `<head>` del panel vía render hook, antes que Livewire) polyfillea `Array.toSorted` / `toReversed` / `toSpliced` y `Promise.withResolvers`. Sin esto, en Chrome 99-109 los botones y el escáner dejan de responder.
+- El CSS publicado (`public/css/inventario.css` y `public/css/filament/filament/app.css`) se “baja” de nivel con `scripts/downlevel-css.mjs` (Lightning CSS, targets Chrome 99): `oklch()` y `color-mix()` se convierten a `rgb()`/`lab()`; lo que queda dentro de `@supports` es ignorado por el navegador viejo sin efectos secundarios.
+- El downlevel corre automáticamente en `composer install` (`php artisan assets:compat`, invocado desde `post-autoload-dump`) y en `npm run build:css`. **Si el servidor de producción no tiene Node, el comando avisa en el log y deja el CSS moderno**: instale Node allí, o copie los dos archivos CSS desde un entorno de desarrollo (que sí lo tiene). Filament oficialmente pide navegadores modernos; este stack es una capa de compatibilidad *best-effort* de este proyecto.
+
 ## Licencia
 
 MIT.

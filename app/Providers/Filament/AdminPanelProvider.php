@@ -11,6 +11,7 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Assets\Css;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -44,6 +45,14 @@ class AdminPanelProvider extends PanelProvider
             Css::make('inventario', public_path('css/inventario.css'))
                 ->relativePublicPath('css/inventario.css'),
         ])
+        ->renderHook(
+            PanelsRenderHook::HEAD_START,
+            fn (): string => sprintf(
+                '<script src="%s?v=%s"></script>',
+                e(asset('js/compat-polyfills.js')),
+                @filemtime(public_path('js/compat-polyfills.js')) ?: 0,
+            ),
+        )
         ->middleware([
             \Illuminate\Cookie\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,

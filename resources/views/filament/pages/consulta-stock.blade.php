@@ -9,13 +9,13 @@
             </x-slot>
 
             <x-slot name="description">
-                Escanee el código de barras o el código del artículo para ver el stock en cada depósito
+                Escanee el código de barras, el código del artículo o escriba una descripción para ver el stock en cada depósito
             </x-slot>
 
             <div>
 
                 <label class="block text-sm font-medium mb-2">
-                    Código de barras / artículo
+                    Código de barras o descripción
                 </label>
 
                 <x-filament::input.wrapper>
@@ -25,7 +25,7 @@
                         wire:model="codigo"
                         wire:keydown.enter="consultar"
                         autofocus
-                        placeholder="Escanear código"
+                        placeholder="Escanear o escribir descripción"
                     />
 
                 </x-filament::input.wrapper>

@@ -278,7 +278,7 @@
                     <div class="md:col-span-2">
 
                         <label class="block text-sm font-medium mb-2">
-                            Código de barras / artículo
+                            Código de barras o descripción
                         </label>
 
                         <x-filament::input.wrapper>
@@ -289,7 +289,7 @@
                                 x-on:keydown.enter="$focus('#campo-cantidad')"
                                 id="campo-codigo"
                                 autofocus
-                                placeholder="Escanear código"
+                                placeholder="Escanear o escribir descripción"
                             />
 
                         </x-filament::input.wrapper>

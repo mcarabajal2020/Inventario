@@ -182,24 +182,6 @@
                 <div>
 
                     <label class="block text-sm font-medium mb-2">
-                        Hoja
-                    </label>
-
-                    <x-filament::input.wrapper>
-
-                        <x-filament::input
-                            type="number"
-                            wire:model.defer="hoja"
-                            placeholder="Ej: 1"
-                        />
-
-                    </x-filament::input.wrapper>
-
-                </div>
-
-                <div>
-
-                    <label class="block text-sm font-medium mb-2">
                         Comprobante
                     </label>
 
@@ -209,6 +191,24 @@
                             type="number"
                             wire:model.defer="comprobante"
                             placeholder="Ej: 12345"
+                        />
+
+                    </x-filament::input.wrapper>
+
+                </div>
+
+                <div>
+
+                    <label class="block text-sm font-medium mb-2">
+                        Hoja
+                    </label>
+
+                    <x-filament::input.wrapper>
+
+                        <x-filament::input
+                            type="number"
+                            wire:model.defer="hoja"
+                            placeholder="Ej: 1"
                         />
 
                     </x-filament::input.wrapper>

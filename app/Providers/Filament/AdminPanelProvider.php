@@ -44,6 +44,7 @@ class AdminPanelProvider extends PanelProvider
             Css::make('inventario', public_path('css/inventario.css'))
                 ->relativePublicPath('css/inventario.css'),
         ])
+        ->favicon(asset('favicon.ico'))
         ->middleware([
             \Illuminate\Cookie\Middleware\EncryptCookies::class,
             \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,

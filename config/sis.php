@@ -25,7 +25,9 @@ return [
 
     'password' => env('SIS_API_PASSWORD'),
 
-    'timeout' => (int) env('SIS_API_TIMEOUT', 20),
+    // Segundos de espera por llamada. Con comprobantes de muchos artículos
+    // el guardado (paso 3) puede tardar más de 20 s y cortarse.
+    'timeout' => (int) env('SIS_API_TIMEOUT', 60),
 
     'session_cache' => env('SIS_SESSION_CACHE', 'sis.api.session'),
 

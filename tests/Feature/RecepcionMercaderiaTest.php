@@ -610,6 +610,69 @@ class RecepcionMercaderiaTest extends TestCase
         $this->assertDatabaseCount('recepciones', 0);
     }
 
+    public function test_no_inicia_si_el_comprobante_quedo_como_movimiento_interrumpido_en_el_erp(): void
+    {
+        $this->fakeSis();
+
+        // Intento de guardado interrumpido: sólo quedó la cabecera del
+        // movimiento en stkmov, sin detalle.
+        $this->stubComprobanteErp([
+            'ptovta' => 1,
+            'comprobante' => 3,
+            'fecha' => '2026-10-23 00:00:00',
+            'proveedor' => null,
+            'proveedor_cod' => 11396,
+            'usuario' => 'TBAZAN',
+            'origen' => 'stkmov',
+            'parcial' => true,
+        ]);
+
+        $component = Livewire::test(RecepcionMercaderia::class)
+            ->set('deposito', 'D1')
+            ->set('proveedor', 'P1')
+            ->set('ptovta', '1')
+            ->set('hoja', '2')
+            ->set('comprobante', '3')
+            ->call('iniciar')
+            ->assertNotified('Carga interrumpida en el ERP');
+
+        $this->assertNull($component->get('recepcion'));
+
+        $this->assertDatabaseCount('recepciones', 0);
+    }
+
+    public function test_no_inicia_si_el_comprobante_existe_en_stkmov_con_otro_proveedor(): void
+    {
+        $this->fakeSis();
+
+        // El ERP valida por centro emisor + número + tipo de movimiento,
+        // sin importar el proveedor: el movimiento existe con detalle pero
+        // de otra cuenta (como el 1-15104 de 11172 contra 11899).
+        $this->stubComprobanteErp([
+            'ptovta' => 1,
+            'comprobante' => 15104,
+            'fecha' => '2026-09-25 00:00:00',
+            'proveedor' => null,
+            'proveedor_cod' => 11172,
+            'usuario' => 'Carlos',
+            'origen' => 'stkmov',
+            'parcial' => false,
+        ]);
+
+        $component = Livewire::test(RecepcionMercaderia::class)
+            ->set('deposito', 'D1')
+            ->set('proveedor', 'P1')
+            ->set('ptovta', '1')
+            ->set('hoja', '2')
+            ->set('comprobante', '15104')
+            ->call('iniciar')
+            ->assertNotified('Comprobante ya existe en el ERP');
+
+        $this->assertNull($component->get('recepcion'));
+
+        $this->assertDatabaseCount('recepciones', 0);
+    }
+
     public function test_no_bloquea_si_no_se_puede_consultar_el_erp(): void
     {
         $this->fakeSis();

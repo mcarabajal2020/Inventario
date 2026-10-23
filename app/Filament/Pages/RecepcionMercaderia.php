@@ -217,15 +217,30 @@ class RecepcionMercaderia extends Page
 
         if ($enErp) {
 
+            if (! empty($enErp['parcial'])) {
+
+                $cuerpo = 'El comprobante ' . $this->ptovta . '-' . $this->comprobante
+                    . ' quedó registrado en el ERP como un movimiento de stock sin detalle'
+                    . ' ni comprobante de compra (se intentó cargar y quedó interrumpido).'
+                    . ' Debe limpiarse en el ERP antes de volver a cargarlo.';
+
+                $this->notificacion('Carga interrumpida en el ERP', $cuerpo, 'danger');
+
+                return;
+            }
+
             $cuerpo = 'El comprobante ' . $this->ptovta . '-' . $this->comprobante . ' ya está registrado en el ERP';
 
             $cuerpo .= ! empty($enErp['fecha'])
                 ? ' el ' . date('d/m/Y', strtotime($enErp['fecha']))
                 : '';
 
-            $cuerpo .= ! empty($enErp['proveedor'])
-                ? ' a nombre de ' . $enErp['proveedor']
-                : '';
+            if (! empty($enErp['proveedor'])) {
+                $cuerpo .= ' a nombre de ' . $enErp['proveedor'];
+            } elseif (! empty($enErp['proveedor_cod'])) {
+                // En stkmov sólo está el código de la cuenta, no el nombre.
+                $cuerpo .= ' a nombre del proveedor N° ' . $enErp['proveedor_cod'];
+            }
 
             $cuerpo .= ! empty($enErp['usuario'])
                 ? ' (lo cargó ' . $enErp['usuario'] . ').'

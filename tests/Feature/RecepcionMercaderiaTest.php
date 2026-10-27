@@ -459,6 +459,44 @@ class RecepcionMercaderiaTest extends TestCase
         $this->assertDatabaseCount('recepciones', 1);
     }
 
+    public function test_inicia_si_el_comprobante_ya_fue_ingresado_con_otro_proveedor(): void
+    {
+        $this->fakeSis([
+            '*/compras-proveedores/cuentas/*' => Http::response([
+                ['ctacod' => '12023', 'ctanom' => 'PROVEEDOR 12023'],
+                ['ctacod' => '14487', 'ctanom' => 'PROVEEDOR 14487'],
+            ]),
+        ]);
+
+        Recepcion::create([
+            'fecha' => '2026-10-07',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => '12023',
+            'proveedor_nom' => 'PROVEEDOR 12023',
+            'ptovta' => '0001',
+            'hoja' => '0001',
+            'comprobante' => '00002',
+            'estado' => 'finalizada',
+            'user_id' => 'otro-usuario',
+        ]);
+
+        // El 1-2 del proveedor 12023 no es duplicado del 1-2 del 14487:
+        // la comparación es proveedor + punto de venta + comprobante.
+        $component = Livewire::test(RecepcionMercaderia::class)
+            ->set('deposito', 'D1')
+            ->set('proveedor', '14487')
+            ->set('ptovta', '1')
+            ->set('hoja', '1')
+            ->set('comprobante', '2')
+            ->call('iniciar')
+            ->assertNotified('Recepción iniciada');
+
+        $this->assertNotNull($component->get('recepcion'));
+
+        $this->assertDatabaseCount('recepciones', 2);
+    }
+
     public function test_no_inicia_si_el_erp_rechazo_el_comprobante_por_duplicado(): void
     {
         $this->fakeSis();
@@ -694,19 +732,47 @@ class RecepcionMercaderiaTest extends TestCase
         $this->assertDatabaseCount('recepciones', 0);
     }
 
-    public function test_no_inicia_si_el_comprobante_existe_en_stkmov_con_otro_proveedor(): void
+    public function test_al_iniciar_busca_el_comprobante_con_proveedor_punto_de_venta_y_numero(): void
+    {
+        $this->fakeSis([
+            '*/compras-proveedores/cuentas/*' => Http::response([
+                ['ctacod' => '14487', 'ctanom' => 'PROVEEDOR 14487'],
+            ]),
+        ]);
+
+        // La comparación es proveedor + punto de venta + comprobante: el
+        // comprobante 1-2 existe en el ERP con el proveedor 12023, pero con
+        // el 14487 no es duplicado y la carga se abre.
+        $erp = Mockery::mock(ComprobanteErp::class);
+        $erp->shouldReceive('buscar')->once()->with(1, 2, 14487)->andReturn(null);
+        $this->instance(ComprobanteErp::class, $erp);
+
+        $component = Livewire::test(RecepcionMercaderia::class)
+            ->set('deposito', 'D1')
+            ->set('proveedor', '14487')
+            ->set('ptovta', '1')
+            ->set('hoja', '1')
+            ->set('comprobante', '2')
+            ->call('iniciar')
+            ->assertNotified('Recepción iniciada');
+
+        $this->assertNotNull($component->get('recepcion'));
+
+        $this->assertDatabaseCount('recepciones', 1);
+    }
+
+    public function test_no_inicia_si_el_comprobante_existe_en_stkmov_con_el_mismo_proveedor(): void
     {
         $this->fakeSis();
 
-        // El ERP valida por centro emisor + número + tipo de movimiento,
-        // sin importar el proveedor: el movimiento existe con detalle pero
-        // de otra cuenta (como el 1-15104 de 11172 contra 11899).
+        // El movimiento existe en stkmov con la misma cuenta (como el
+        // 1-15104 de 11172): es el duplicado que bloquea la carga.
         $this->stubComprobanteErp([
             'ptovta' => 1,
             'comprobante' => 15104,
             'fecha' => '2026-09-25 00:00:00',
             'proveedor' => null,
-            'proveedor_cod' => 11172,
+            'proveedor_cod' => 'P1',
             'usuario' => 'Carlos',
             'origen' => 'stkmov',
             'parcial' => false,

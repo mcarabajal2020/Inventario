@@ -337,7 +337,10 @@ class RecepcionMercaderia extends Page
 
     /**
      * Otra recepción (de este usuario o de cualquiera) con el mismo
-     * punto de venta, hoja y comprobante: se corta antes de cargar.
+     * proveedor, punto de venta, hoja y comprobante: se corta antes de
+     * cargar. La comparación es por los tres más la hoja, igual que la
+     * validación contra el ERP: el mismo número con otro proveedor no es
+     * duplicado.
      *
      * Además de los borradores y las finalizadas, cuenta la que quedó en
      * `error` cuando el ERP la rechazó por duplicado: reintentarla siempre
@@ -353,6 +356,7 @@ class RecepcionMercaderia extends Page
                             ->whereRaw('mensaje LIKE ?', ['%duplicados del n_mero de comprobante%']);
                     });
             })
+            ->whereRaw('CAST(proveedor_cod AS UNSIGNED) = ?', [(int) $this->proveedor])
             ->whereRaw('CAST(ptovta AS UNSIGNED) = ?', [(int) $this->ptovta])
             ->whereRaw('CAST(hoja AS UNSIGNED) = ?', [(int) $this->hoja])
             ->whereRaw('CAST(comprobante AS UNSIGNED) = ?', [(int) $this->comprobante])

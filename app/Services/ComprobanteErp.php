@@ -14,15 +14,20 @@ use Illuminate\Support\Facades\Log;
  * módulo sólo publica `zonas` y `cuentas`), así que se lee directo de la
  * base `mutualnew`.
  *
- * El ERP valida sus duplicados ("Se encontraron duplicados del número de
- * comprobante, para el centro emisor y tipo de movimiento indicados") sobre
- * `stkmov` (movimientos de stock; `cbtcod = 80` y `tmscod = 6` es recepción
- * de mercadería), y no sobre `comcbt`. La validación no tiene en cuenta el
- * proveedor: el mismo número no se puede volver a usar en el mismo centro
- * emisor aunque sea otra cuenta. Una recepción exitosa deja la cabecera en
- * `stkmov` con su detalle en `stkmovart`, pero un intento de guardado
- * interrumpido (por ejemplo por un timeout de la API) puede dejar sólo la
- * cabecera: eso igual bloquea el siguiente guardado.
+ * Se consulta en dos tablas: `comcbt` (comprobantes de compra) y `stkmov`
+ * (movimientos de stock; `cbtcod = 80` y `tmscod = 6` es recepción de
+ * mercadería). Una recepción exitosa deja la cabecera en `stkmov` con su
+ * detalle en `stkmovart`, pero un intento de guardado interrumpido (por
+ * ejemplo por un timeout de la API) puede dejar sólo la cabecera: eso igual
+ * hay que limpiarlo en el ERP.
+ *
+ * La comparación es **proveedor + punto de venta + comprobante**: el mismo
+ * número de comprobante se puede cargar para otro proveedor. Ojo con el ERP:
+ * su propio mensaje de duplicados ("Se encontraron duplicados del número de
+ * comprobante, para el centro emisor y tipo de movimiento indicados") no
+ * menciona la cuenta, así que si al guardar no acepta el número aunque sea
+ * otro proveedor, el rechazo queda igual en *Últimas recepciones* y hay que
+ * resolverlo en el ERP.
  *
  * Centro emisor (`cemcod`) = punto de venta, número = `cbtnro`.
  */
@@ -36,12 +41,11 @@ class ComprobanteErp
      * es true cuando sólo existe la cabecera del movimiento en `stkmov`
      * sin detalle: es una carga interrumpida que hay que limpiar en el ERP.
      *
-     * El ERP valida los duplicados por centro emisor + número + tipo de
-     * movimiento, sin importar el proveedor: el mismo número se puede usar
-     * para otro proveedor en `comcbt` (la numeración de ahí es por cuenta),
-     * pero en `stkmov` con `tmscod = 6` (recepción, el tipo que crea esta
-     * aplicación) nunca se reutiliza entre proveedores. Por eso la
-     * búsqueda en `stkmov` no filtra por proveedor.
+     * Con `$proveedorCod` la búsqueda es por **proveedor + punto de venta +
+     * comprobante** en las dos tablas (`comcbt.ctacod` y `stkmov.cmpctacod`):
+     * si el comprobante existe pero con otra cuenta no es duplicado y se
+     * devuelve null. Sin proveedor (`null`) se compara sólo por punto de
+     * venta + comprobante, como antes.
      */
     public function buscar(int $puntoDeVenta, int $comprobante, ?int $proveedorCod = null): ?array
     {
@@ -61,7 +65,7 @@ class ComprobanteErp
                 ];
             }
 
-            $movimiento = $this->stkmov($puntoDeVenta, $comprobante);
+            $movimiento = $this->stkmov($puntoDeVenta, $comprobante, $proveedorCod);
         } catch (Exception $e) {
             Log::warning('No se pudo consultar el comprobante en el ERP: ' . $e->getMessage());
 
@@ -100,9 +104,9 @@ class ComprobanteErp
         return $query->first();
     }
 
-    protected function stkmov(int $puntoDeVenta, int $comprobante): ?object
+    protected function stkmov(int $puntoDeVenta, int $comprobante, ?int $proveedorCod): ?object
     {
-        return DB::connection('mutualnew')
+        $query = DB::connection('mutualnew')
             ->table('stkmov')
             ->select('stkmov.cemcod', 'stkmov.cbtnro', 'stkmov.cbtfec', 'stkmov.cmpctacod', 'stkmov.usrregis')
             ->selectRaw('(SELECT COUNT(*) FROM stkmovart WHERE stkmovart.id = stkmov.id) as detalles')
@@ -110,7 +114,12 @@ class ComprobanteErp
             ->where('stkmov.cbtnro', $comprobante)
             ->where('stkmov.cbtcod', 80)
             ->where('stkmov.tmscod', 6)
-            ->where('stkmov.inactivo', 0)
-            ->first();
+            ->where('stkmov.inactivo', 0);
+
+        if (! is_null($proveedorCod)) {
+            $query->where('stkmov.cmpctacod', $proveedorCod);
+        }
+
+        return $query->first();
     }
 }

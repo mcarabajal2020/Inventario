@@ -354,7 +354,7 @@ class SisApiClient
             'ctacod' => $proveedor,
             'cbtnro' => $comprobante,
             'remcbtfec' => $fecha,
-            'succod' => 1,
+            'succod' => $this->sucursalDelDeposito($deposito),
             'depcod' => $deposito,
             'articulos' => $articulos,
         ]);
@@ -364,6 +364,28 @@ class SisApiClient
         }
 
         return is_array($data) ? $data : ['message' => (string) $data];
+    }
+
+    /**
+     * Sucursal a la que pertenece el depósito de la recepción.
+     *
+     * El ERP tiene depósitos en varias sucursales (Darregueira y CAB son la
+     * 1, Felipe Sola la 2, Salliquelo la 3, etc.): `paso3` se venía mandando
+     * con `succod` fijo en 1, igual que hace `numeracion()` con la sucursal
+     * real del depósito. Si no se puede resolver se manda 1, el valor que se
+     * usaba hasta ahora.
+     */
+    protected function sucursalDelDeposito(string $depcod): int
+    {
+        try {
+            $deposito = collect($this->depositos())->firstWhere('depcod', $depcod);
+        } catch (Exception) {
+            return 1;
+        }
+
+        $succod = is_array($deposito) ? ($deposito['succod'] ?? null) : null;
+
+        return blank($succod) ? 1 : (int) $succod;
     }
 
     /**

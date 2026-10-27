@@ -316,6 +316,39 @@ class RecepcionMercaderiaTest extends TestCase
         });
     }
 
+    public function test_finaliza_con_la_sucursal_real_del_deposito(): void
+    {
+        // El ERP tiene depósitos en varias sucursales (D2 es la 2): si el
+        // paso3 va con succod fijo en 1 la recepción queda registrada en la
+        // sucursal equivocada.
+        $this->fakeSis([
+            '*/articulos/*' => Http::response([
+                ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
+            ]),
+            '*/recepcion-mercaderia/paso1/*' => Http::response(['message' => 'OK']),
+            '*/recepcion-mercaderia/paso2/*' => Http::response(['message' => 'OK']),
+            '*/recepcion-mercaderia/paso3/*' => Http::response(['message' => 'Movimiento de stock creado']),
+        ]);
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->set('deposito', 'D2')
+            ->set('proveedor', 'P1')
+            ->set('ptovta', '1')
+            ->set('hoja', '2')
+            ->set('comprobante', '3')
+            ->call('iniciar')
+            ->set('codigo', 'A1')
+            ->set('cantidad', 4)
+            ->call('agregar')
+            ->call('finalizar');
+
+        Http::assertSent(function ($request) {
+            return str_contains($request->url(), '/recepcion-mercaderia/paso3/')
+                && $request['depcod'] === 'D2'
+                && $request['succod'] === 2;
+        });
+    }
+
     public function test_se_detiene_si_el_proveedor_no_existe(): void
     {
         $this->fakeSis([

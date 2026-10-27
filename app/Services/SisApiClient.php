@@ -348,7 +348,7 @@ class SisApiClient
      */
     public function recepcionPaso3(string $fecha, string $puntoVenta, string $proveedor, string $comprobante, string $deposito, array $articulos): array
     {
-        $data = $this->post("/{$this->empresa()}/compras-proveedores/recepcion-mercaderia/paso3/", [
+        $payload = [
             'cemcod' => $puntoVenta,
             'cbtfec' => $fecha,
             'ctacod' => $proveedor,
@@ -357,7 +357,15 @@ class SisApiClient
             'succod' => $this->sucursalDelDeposito($deposito),
             'depcod' => $deposito,
             'articulos' => $articulos,
-        ]);
+        ];
+
+        // El cuerpo exacto que se manda al ERP: con esto se pudo comparar
+        // este envío con el de la pantalla del ERP cuando el paso3 respondió
+        // 500 sin detalle (la cabecera quedaba creada en stkmov y el detalle
+        // no se escribía).
+        Log::debug('SIS API paso3 payload', $payload);
+
+        $data = $this->post("/{$this->empresa()}/compras-proveedores/recepcion-mercaderia/paso3/", $payload);
 
         if (is_array($data) && isset($data['error'])) {
             return ['message' => (string) $data['error']];

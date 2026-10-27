@@ -153,6 +153,43 @@ class RecepcionMercaderia extends Page
         return str_contains(str_replace([' ', '-', '.'], '', (string) ($proveedor['ctanro'] ?? '')), $compacto);
     }
 
+    /**
+     * Borra de la base de datos un registro que quedó en estado "error"
+     * (un comprobante que el ERP rechazó). Sólo se pueden borrar registros
+     * en error: los borradores se retoman con "Iniciar recepción" y las
+     * finalizadas son el historial de lo que ya se recibió.
+     */
+    public function limpiarError(int $id): void
+    {
+        $recepcion = Recepcion::find($id);
+
+        if (! $recepcion) {
+            $this->notificacion('Registro no encontrado', 'El registro ya no existe.', 'danger');
+
+            return;
+        }
+
+        if ($recepcion->estado !== 'error') {
+            $this->notificacion('No se puede borrar', 'Sólo se pueden borrar registros en estado de error.', 'danger');
+
+            return;
+        }
+
+        $detalle = $recepcion->detalles()->count();
+
+        $recepcion->delete();
+
+        if ($this->recepcion === $id) {
+            $this->recepcion = null;
+        }
+
+        $this->notificacion(
+            'Registro borrado',
+            "Se borró el comprobante {$recepcion->ptovta}-{$recepcion->comprobante} de {$recepcion->proveedor_nom} junto con sus {$detalle} artículo(s).",
+            'success'
+        );
+    }
+
     public function detalles(): Collection
     {
         if (! $this->recepcion) {

@@ -567,6 +567,10 @@
                                 Mensaje
                             </th>
 
+                            <th class="px-4 py-3 text-left text-sm font-semibold">
+                                Acción
+                            </th>
+
                         </tr>
 
                     </thead>
@@ -621,13 +625,34 @@
                                     {{ $recepcionItem->mensaje }}
                                 </td>
 
+                                <td class="px-4 py-3 text-sm">
+
+                                    @if($recepcionItem->estado === 'error')
+
+                                        <x-filament::button
+                                            wire:click="limpiarError({{ $recepcionItem->id }})"
+                                            color="danger"
+                                            size="sm"
+                                            wire:confirm="Se borrará este registro de la base de datos. ¿Continuar?"
+                                        >
+                                            Limpiar registro
+                                        </x-filament::button>
+
+                                    @else
+
+                                        <span class="text-sm text-gray-500 dark:text-white/50">—</span>
+
+                                    @endif
+
+                                </td>
+
                             </tr>
 
                         @empty
 
                             <tr>
 
-                                <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">
+                                <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
                                     Todavía no se registraron recepciones
                                 </td>
 
@@ -695,6 +720,23 @@
                             <div class="mt-1 text-sm">
                                 <span class="font-medium">Mensaje:</span>
                                 {{ $recepcionItem->mensaje }}
+                            </div>
+
+                        @endif
+
+                        @if($recepcionItem->estado === 'error')
+
+                            <div class="mt-3">
+
+                                <x-filament::button
+                                    wire:click="limpiarError({{ $recepcionItem->id }})"
+                                    color="danger"
+                                    size="sm"
+                                    wire:confirm="Se borrará este registro de la base de datos. ¿Continuar?"
+                                >
+                                    Limpiar registro
+                                </x-filament::button>
+
                             </div>
 
                         @endif

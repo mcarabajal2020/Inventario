@@ -678,6 +678,152 @@ class RecepcionMercaderiaTest extends TestCase
             ->assertDontSee('4-7-12345');
     }
 
+    public function test_limpia_un_registro_con_error_desde_el_listado(): void
+    {
+        $this->fakeSis();
+
+        $recepcion = Recepcion::create([
+            'fecha' => '2026-10-27',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '1',
+            'hoja' => '1',
+            'comprobante' => '3',
+            'estado' => 'error',
+            'mensaje' => 'Error 500 al consultar la API del ERP.',
+        ]);
+
+        RecepcionDetalle::create([
+            'recepcion_id' => $recepcion->id,
+            'artcod' => 'A1',
+            'artdes' => 'Artículo Test',
+            'cantidad' => 1,
+        ]);
+
+        $this->assertDatabaseCount('recepciones', 1);
+        $this->assertDatabaseCount('recepcion_detalles', 1);
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->call('limpiarError', $recepcion->id)
+            ->assertNotified('Registro borrado');
+
+        $this->assertDatabaseCount('recepciones', 0);
+        $this->assertDatabaseCount('recepcion_detalles', 0);
+    }
+
+    public function test_no_limpia_una_recepcion_que_no_esta_en_error(): void
+    {
+        $this->fakeSis();
+
+        $borrador = Recepcion::create([
+            'fecha' => '2026-10-27',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '1',
+            'hoja' => '1',
+            'comprobante' => '3',
+            'estado' => 'borrador',
+        ]);
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->call('limpiarError', $borrador->id)
+            ->assertNotified('No se puede borrar');
+
+        $this->assertDatabaseCount('recepciones', 1);
+        $this->assertSame('borrador', $borrador->fresh()->estado);
+    }
+
+    public function test_no_limpia_una_recepcion_finalizada(): void
+    {
+        $this->fakeSis();
+
+        $finalizada = Recepcion::create([
+            'fecha' => '2026-10-27',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '1',
+            'hoja' => '1',
+            'comprobante' => '3',
+            'estado' => 'finalizada',
+        ]);
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->call('limpiarError', $finalizada->id);
+
+        $this->assertDatabaseCount('recepciones', 1);
+        $this->assertSame('finalizada', $finalizada->fresh()->estado);
+    }
+
+    public function test_no_limpia_un_registro_que_no_existe(): void
+    {
+        $this->fakeSis();
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->call('limpiarError', 999)
+            ->assertNotified('Registro no encontrado');
+
+        $this->assertDatabaseCount('recepciones', 0);
+    }
+
+    public function test_el_boton_limpiar_solo_se_ve_en_los_registros_en_error(): void
+    {
+        $this->fakeSis();
+
+        $error = Recepcion::create([
+            'fecha' => '2026-10-27',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '1',
+            'hoja' => '1',
+            'comprobante' => '3',
+            'estado' => 'error',
+        ]);
+
+        Recepcion::create([
+            'fecha' => '2026-10-26',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '2',
+            'hoja' => '1',
+            'comprobante' => '4',
+            'estado' => 'finalizada',
+        ]);
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->assertSee('Limpiar registro')
+            ->assertSee("limpiarError({$error->id})");
+    }
+
+    public function test_no_se_ve_el_boton_limpiar_cuando_no_hay_registros_en_error(): void
+    {
+        $this->fakeSis();
+
+        Recepcion::create([
+            'fecha' => '2026-10-26',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '2',
+            'hoja' => '1',
+            'comprobante' => '4',
+            'estado' => 'finalizada',
+        ]);
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->assertDontSee('Limpiar registro');
+    }
+
     public function test_no_inicia_si_el_comprobante_ya_existe_en_el_erp(): void
     {
         $this->fakeSis();

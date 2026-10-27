@@ -21,13 +21,15 @@ use Illuminate\Support\Facades\Log;
  * ejemplo por un timeout de la API) puede dejar sólo la cabecera: eso igual
  * hay que limpiarlo en el ERP.
  *
- * La comparación es **proveedor + punto de venta + comprobante**: el mismo
- * número de comprobante se puede cargar para otro proveedor. Ojo con el ERP:
- * su propio mensaje de duplicados ("Se encontraron duplicados del número de
- * comprobante, para el centro emisor y tipo de movimiento indicados") no
- * menciona la cuenta, así que si al guardar no acepta el número aunque sea
- * otro proveedor, el rechazo queda igual en *Últimas recepciones* y hay que
- * resolverlo en el ERP.
+ * La comparación al **abrir la carga** es **proveedor + punto de venta +
+ * comprobante**: el mismo número se puede cargar para otro proveedor. Pero
+ * al **guardar** manda la regla del ERP: su mensaje de duplicados
+ * (*"Se encontraron duplicados del número de comprobante, para el centro
+ * emisor y tipo de movimiento indicados"*) no mira la cuenta (el chequeo es
+ * por `cemcod` + número + tipo de movimiento en `stkmov`), así que un número
+ * que ya es recepción de otro proveedor lo rechaza igual en el paso3. Por
+ * eso `recepcionEnErp()` busca sin filtrar por proveedor y se corre antes de
+ * enviar, para cortar el guardado y avisar en vez de regalar un 500.
  *
  * Centro emisor (`cemcod`) = punto de venta, número = `cbtnro`.
  */
@@ -76,6 +78,39 @@ class ComprobanteErp
             return null;
         }
 
+        return $this->filaMovimiento($movimiento);
+    }
+
+    /**
+     * Recepción existente en `stkmov` **sin mirar el proveedor**: es la
+     * regla con la que realmente valida el ERP al guardar (el paso3 manda
+     * centro emisor + número + tipo de movimiento y la cuenta no viaja en
+     * el payload, así que el 1-2 que ya es recepción de otro proveedor lo
+     * rechaza igual: *"Se encontraron duplicados del número de comprobante,
+     * para el centro emisor y tipo de movimiento indicados."*).
+     *
+     * Se usa justo antes de enviar, para cortar el guardado y avisar en vez
+     * de regalar un llamado al ERP que termina en 500.
+     */
+    public function recepcionEnErp(int $puntoDeVenta, int $comprobante): ?array
+    {
+        try {
+            $movimiento = $this->stkmov($puntoDeVenta, $comprobante, null);
+        } catch (Exception $e) {
+            Log::warning('No se pudo consultar el movimiento en el ERP: ' . $e->getMessage());
+
+            return null;
+        }
+
+        return $movimiento ? $this->filaMovimiento($movimiento) : null;
+    }
+
+    /**
+     * Fila de `stkmov` en el arreglo con la misma forma que devuelve
+     * `buscar()`.
+     */
+    protected function filaMovimiento(object $movimiento): array
+    {
         return [
             'ptovta' => $movimiento->cemcod,
             'comprobante' => $movimiento->cbtnro,

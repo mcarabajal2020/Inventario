@@ -41,18 +41,22 @@ class RecepcionMercaderiaTest extends TestCase
     }
 
     /**
-     * Reemplaza la consulta de comprobantes del ERP (`mutualnew.comcbt`):
-     * `$fila` = datos del comprobante si ya existe, `$fallo` = si la base
-     * del negocio no responde.
+     * Reemplaza la consulta de comprobantes del ERP (`mutualnew.comcbt` y
+     * `mutualnew.stkmov`): `$fila` = datos del comprobante si ya existe,
+     * `$movimiento` = recepción existente en `stkmov` con **cualquier**
+     * proveedor (la regla con la que valida el ERP al guardar), `$fallo` =
+     * si la base del negocio no responde.
      */
-    private function stubComprobanteErp(?array $fila = null, ?Exception $fallo = null): void
+    private function stubComprobanteErp(?array $fila = null, ?Exception $fallo = null, ?array $movimiento = null): void
     {
         $stub = Mockery::mock(ComprobanteErp::class);
 
         if ($fallo) {
             $stub->shouldReceive('buscar')->andThrow($fallo);
+            $stub->shouldReceive('recepcionEnErp')->andThrow($fallo);
         } else {
             $stub->shouldReceive('buscar')->andReturn($fila);
+            $stub->shouldReceive('recepcionEnErp')->andReturn($movimiento);
         }
 
         $this->instance(ComprobanteErp::class, $stub);
@@ -745,6 +749,7 @@ class RecepcionMercaderiaTest extends TestCase
         // el 14487 no es duplicado y la carga se abre.
         $erp = Mockery::mock(ComprobanteErp::class);
         $erp->shouldReceive('buscar')->once()->with(1, 2, 14487)->andReturn(null);
+        $erp->shouldReceive('recepcionEnErp')->once()->with(1, 2)->andReturn(null);
         $this->instance(ComprobanteErp::class, $erp);
 
         $component = Livewire::test(RecepcionMercaderia::class)
@@ -790,6 +795,111 @@ class RecepcionMercaderiaTest extends TestCase
         $this->assertNull($component->get('recepcion'));
 
         $this->assertDatabaseCount('recepciones', 0);
+    }
+
+    public function test_avisa_pero_deja_cargar_si_el_comprobante_es_recepcion_de_otro_proveedor(): void
+    {
+        $this->fakeSis();
+
+        // El 1-2 ya es recepción del ERP del proveedor 12023 (lo cargó
+        // Carlos): al abrir se deja cargar porque la comparación es por
+        // proveedor, pero se avisa que el paso3 lo va a rechazar.
+        $this->stubComprobanteErp(null, null, [
+            'ptovta' => 1,
+            'comprobante' => 2,
+            'fecha' => '2026-10-07 00:00:00',
+            'proveedor' => null,
+            'proveedor_cod' => '12023',
+            'usuario' => 'Carlos',
+            'origen' => 'stkmov',
+            'parcial' => false,
+        ]);
+
+        $component = $this->iniciarRecepcion()
+            ->assertNotified('El ERP puede rechazar este comprobante');
+
+        $this->assertNotNull($component->get('recepcion'));
+
+        $this->assertDatabaseCount('recepciones', 1);
+    }
+
+    public function test_no_envia_al_erp_si_el_comprobante_es_recepcion_de_otro_proveedor(): void
+    {
+        $this->fakeSis([
+            '*/articulos/*' => Http::response([
+                ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
+            ]),
+            '*/recepcion-mercaderia/paso1/*' => Http::response(['message' => 'OK']),
+            '*/recepcion-mercaderia/paso2/*' => Http::response(['message' => 'OK']),
+            '*/recepcion-mercaderia/paso3/*' => Http::response(['message' => 'Movimiento de stock creado']),
+        ]);
+
+        $this->stubComprobanteErp(null, null, [
+            'ptovta' => 1,
+            'comprobante' => 3,
+            'fecha' => '2026-10-07 00:00:00',
+            'proveedor' => null,
+            'proveedor_cod' => '12023',
+            'usuario' => 'Carlos',
+            'origen' => 'stkmov',
+            'parcial' => false,
+        ]);
+
+        // Se carga todo y recién al guardar corre la misma validación: el
+        // número ya es recepción de otra cuenta y el ERP lo rechazaría.
+        $this->iniciarRecepcion()
+            ->set('codigo', 'A1')
+            ->set('cantidad', 4)
+            ->call('agregar')
+            ->call('finalizar')
+            ->assertNotified('Comprobante ya existe en el ERP');
+
+        $recepcion = Recepcion::first();
+
+        $this->assertSame('borrador', $recepcion->estado);
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/recepcion-mercaderia/paso3/'));
+    }
+
+    public function test_no_envia_al_erp_si_el_comprobante_existe_en_el_erp_con_el_mismo_proveedor(): void
+    {
+        $this->fakeSis([
+            '*/articulos/*' => Http::response([
+                ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
+            ]),
+            '*/recepcion-mercaderia/paso1/*' => Http::response(['message' => 'OK']),
+            '*/recepcion-mercaderia/paso2/*' => Http::response(['message' => 'OK']),
+            '*/recepcion-mercaderia/paso3/*' => Http::response(['message' => 'Movimiento de stock creado']),
+        ]);
+
+        // Al iniciar el comprobante no existía; mientras se cargaban los
+        // artículos otro usuario lo registró en el ERP: al guardar se corta.
+        $stub = Mockery::mock(ComprobanteErp::class);
+        $stub->shouldReceive('buscar')->andReturn(null, [
+            'ptovta' => 1,
+            'comprobante' => 3,
+            'fecha' => '2026-10-27 00:00:00',
+            'proveedor' => null,
+            'proveedor_cod' => 'P1',
+            'usuario' => 'adriana',
+            'origen' => 'stkmov',
+            'parcial' => false,
+        ]);
+        $stub->shouldReceive('recepcionEnErp')->andReturn(null);
+        $this->instance(ComprobanteErp::class, $stub);
+
+        $this->iniciarRecepcion()
+            ->set('codigo', 'A1')
+            ->set('cantidad', 4)
+            ->call('agregar')
+            ->call('finalizar')
+            ->assertNotified('Comprobante ya existe en el ERP');
+
+        $recepcion = Recepcion::first();
+
+        $this->assertSame('borrador', $recepcion->estado);
+
+        Http::assertNotSent(fn ($request) => str_contains($request->url(), '/recepcion-mercaderia/paso3/'));
     }
 
     public function test_no_bloquea_si_no_se_puede_consultar_el_erp(): void

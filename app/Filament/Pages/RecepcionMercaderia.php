@@ -190,16 +190,14 @@ class RecepcionMercaderia extends Page
 
         if ($cargada = $this->comprobanteYaIngresado($borrador?->id)) {
 
-            $cuerpo = 'El comprobante ' . $this->ptovta . '-' . $this->hoja . '-' . $this->comprobante
-                . ' de ' . $cargada->proveedor_nom;
+            [$titulo, $cuerpo] = $this->mensajeComprobanteLocal(
+                $cargada,
+                (string) $this->ptovta,
+                (string) $this->hoja,
+                (string) $this->comprobante
+            );
 
-            $cuerpo .= $cargada->estado === 'error'
-                ? ' ya fue intentado el ' . date('d/m/Y', strtotime($cargada->fecha))
-                    . ' por ' . $cargada->user_id . ' y el ERP lo rechazó por duplicado: ' . $cargada->mensaje
-                : ' ya fue cargado el ' . date('d/m/Y', strtotime($cargada->fecha))
-                    . ' por ' . $cargada->user_id . ' (estado: ' . $cargada->estado . ').';
-
-            $this->notificacion('Comprobante ya ingresado', $cuerpo, 'danger');
+            $this->notificacion($titulo, $cuerpo, 'danger');
 
             return;
         }
@@ -217,38 +215,32 @@ class RecepcionMercaderia extends Page
 
         if ($enErp) {
 
-            if (! empty($enErp['parcial'])) {
+            [$titulo, $cuerpo] = $this->mensajeComprobanteEnErp($enErp, (string) $this->ptovta, (string) $this->comprobante);
 
-                $cuerpo = 'El comprobante ' . $this->ptovta . '-' . $this->comprobante
-                    . ' quedó registrado en el ERP como un movimiento de stock sin detalle'
-                    . ' ni comprobante de compra (se intentó cargar y quedó interrumpido).'
-                    . ' Debe limpiarse en el ERP antes de volver a cargarlo.';
-
-                $this->notificacion('Carga interrumpida en el ERP', $cuerpo, 'danger');
-
-                return;
-            }
-
-            $cuerpo = 'El comprobante ' . $this->ptovta . '-' . $this->comprobante . ' ya está registrado en el ERP';
-
-            $cuerpo .= ! empty($enErp['fecha'])
-                ? ' el ' . date('d/m/Y', strtotime($enErp['fecha']))
-                : '';
-
-            if (! empty($enErp['proveedor'])) {
-                $cuerpo .= ' a nombre de ' . $enErp['proveedor'];
-            } elseif (! empty($enErp['proveedor_cod'])) {
-                // En stkmov sólo está el código de la cuenta, no el nombre.
-                $cuerpo .= ' a nombre del proveedor N° ' . $enErp['proveedor_cod'];
-            }
-
-            $cuerpo .= ! empty($enErp['usuario'])
-                ? ' (lo cargó ' . $enErp['usuario'] . ').'
-                : '.';
-
-            $this->notificacion('Comprobante ya existe en el ERP', $cuerpo, 'danger');
+            $this->notificacion($titulo, $cuerpo, 'danger');
 
             return;
+        }
+
+        // Aviso no bloqueante: al abrir, la comparación es por proveedor, así
+        // que el mismo número de otra cuenta deja cargar. Pero el ERP valida
+        // el duplicado al guardar (paso3) por centro emisor + tipo de
+        // movimiento, sin mirar la cuenta, y lo va a rechazar: se avisa
+        // antes de cargar los artículos para no llegar hasta el final.
+        try {
+            $ajena = $this->comprobanteErp()->recepcionEnErp((int) $this->ptovta, (int) $this->comprobante);
+        } catch (Exception $e) {
+            Log::warning('No se pudo consultar el movimiento en el ERP: ' . $e->getMessage());
+
+            $ajena = null;
+        }
+
+        if ($ajena) {
+            $this->notificacion(
+                'El ERP puede rechazar este comprobante',
+                $this->mensajeRecepcionAjena($ajena, (string) $this->ptovta, (string) $this->comprobante),
+                'warning'
+            );
         }
 
         try {
@@ -336,18 +328,165 @@ class RecepcionMercaderia extends Page
     }
 
     /**
+     * [título, cuerpo] del aviso cuando el comprobante ya fue cargado en
+     * esta aplicación (mismo proveedor + punto de venta + hoja + comprobante).
+     */
+    protected function mensajeComprobanteLocal(Recepcion $cargada, string $ptovta, string $hoja, string $comprobante): array
+    {
+        $cuerpo = 'El comprobante ' . $ptovta . '-' . $hoja . '-' . $comprobante
+            . ' de ' . $cargada->proveedor_nom;
+
+        $cuerpo .= $cargada->estado === 'error'
+            ? ' ya fue intentado el ' . date('d/m/Y', strtotime($cargada->fecha))
+                . ' por ' . $cargada->user_id . ' y el ERP lo rechazó por duplicado: ' . $cargada->mensaje
+            : ' ya fue cargado el ' . date('d/m/Y', strtotime($cargada->fecha))
+                . ' por ' . $cargada->user_id . ' (estado: ' . $cargada->estado . ').';
+
+        return ['Comprobante ya ingresado', $cuerpo];
+    }
+
+    /**
+     * [título, cuerpo] del aviso cuando el comprobante ya está en el ERP
+     * con el mismo proveedor + punto de venta + comprobante (`buscar()`).
+     */
+    protected function mensajeComprobanteEnErp(array $enErp, string $ptovta, string $comprobante): array
+    {
+        if (! empty($enErp['parcial'])) {
+
+            $cuerpo = 'El comprobante ' . $ptovta . '-' . $comprobante
+                . ' quedó registrado en el ERP como un movimiento de stock sin detalle'
+                . ' ni comprobante de compra (se intentó cargar y quedó interrumpido).'
+                . ' Debe limpiarse en el ERP antes de volver a cargarlo.';
+
+            return ['Carga interrumpida en el ERP', $cuerpo];
+        }
+
+        $cuerpo = 'El comprobante ' . $ptovta . '-' . $comprobante . ' ya está registrado en el ERP';
+
+        $cuerpo .= ! empty($enErp['fecha'])
+            ? ' el ' . date('d/m/Y', strtotime($enErp['fecha']))
+            : '';
+
+        if (! empty($enErp['proveedor'])) {
+            $cuerpo .= ' a nombre de ' . $enErp['proveedor'];
+        } elseif (! empty($enErp['proveedor_cod'])) {
+            // En stkmov sólo está el código de la cuenta, no el nombre.
+            $cuerpo .= ' a nombre del proveedor N° ' . $enErp['proveedor_cod'];
+        }
+
+        $cuerpo .= ! empty($enErp['usuario'])
+            ? ' (lo cargó ' . $enErp['usuario'] . ').'
+            : '.';
+
+        return ['Comprobante ya existe en el ERP', $cuerpo];
+    }
+
+    /**
+     * Aviso (no bloqueante al iniciar) cuando el número ya es una recepción
+     * del ERP de **otro** proveedor: la carga se abre porque la comparación
+     * es por proveedor, pero al guardar el ERP lo rechaza igual.
+     */
+    protected function mensajeRecepcionAjena(array $fila, string $ptovta, string $comprobante): string
+    {
+        $cuerpo = 'El comprobante ' . $ptovta . '-' . $comprobante
+            . ' ya está registrado en el ERP como recepción';
+
+        $cuerpo .= ! empty($fila['fecha'])
+            ? ' del ' . date('d/m/Y', strtotime($fila['fecha']))
+            : '';
+
+        $cuerpo .= ! empty($fila['proveedor_cod'])
+            ? ' del proveedor N° ' . $fila['proveedor_cod']
+            : '';
+
+        $cuerpo .= ! empty($fila['usuario'])
+            ? ' (lo cargó ' . $fila['usuario'] . ')'
+            : '';
+
+        $cuerpo .= ! empty($fila['parcial'])
+            ? ', y quedó sin detalle (carga interrumpida).'
+            : '.';
+
+        return $cuerpo . ' El ERP no permite repetir el número en el mismo punto de venta'
+            . ' ni cambiando de proveedor: hay que corregir o anular esa recepción en el ERP'
+            . ' antes de guardar esta.';
+    }
+
+    /**
+     * Misma validación que al iniciar, corrida justo antes de enviar: si el
+     * comprobante ya existe no se llama a ningún paso de la API y se avisa
+     * [título, cuerpo]; si no existe, null y se guarda.
+     *
+     * A diferencia de al iniciar, acá también corta el número que ya es
+     * recepción del ERP con **otro** proveedor (`recepcionEnErp()`): el
+     * paso3 valida el duplicado por centro emisor + tipo de movimiento sin
+     * mirar la cuenta, así que ese envío terminaría en el error
+     * *"Se encontraron duplicados del número de comprobante…"*.
+     */
+    protected function bloqueoDeDuplicado(Recepcion $recepcion): ?array
+    {
+        $ptovta = (string) $recepcion->ptovta;
+        $comprobante = (string) $recepcion->comprobante;
+
+        if ($cargada = $this->comprobanteYaIngresado($recepcion->id, $recepcion)) {
+            return $this->mensajeComprobanteLocal($cargada, $ptovta, (string) $recepcion->hoja, $comprobante);
+        }
+
+        try {
+            $enErp = $this->comprobanteErp()->buscar(
+                (int) $recepcion->ptovta,
+                (int) $recepcion->comprobante,
+                (int) $recepcion->proveedor_cod
+            );
+        } catch (Exception $e) {
+            Log::warning('No se pudo validar el comprobante en el ERP: ' . $e->getMessage());
+
+            $enErp = null;
+        }
+
+        if ($enErp) {
+            return $this->mensajeComprobanteEnErp($enErp, $ptovta, $comprobante);
+        }
+
+        try {
+            $ajena = $this->comprobanteErp()->recepcionEnErp((int) $recepcion->ptovta, (int) $recepcion->comprobante);
+        } catch (Exception $e) {
+            Log::warning('No se pudo consultar el movimiento en el ERP: ' . $e->getMessage());
+
+            $ajena = null;
+        }
+
+        if ($ajena) {
+            return ['Comprobante ya existe en el ERP', $this->mensajeRecepcionAjena($ajena, $ptovta, $comprobante)];
+        }
+
+        return null;
+    }
+
+    /**
      * Otra recepción (de este usuario o de cualquiera) con el mismo
      * proveedor, punto de venta, hoja y comprobante: se corta antes de
      * cargar. La comparación es por los tres más la hoja, igual que la
      * validación contra el ERP: el mismo número con otro proveedor no es
      * duplicado.
      *
+     * `$referencia` permite validar con los datos de una recepción concreta
+     * (el caso de `finalizar()`, que se controla desde el registro guardado
+     * y no desde los campos de la cabecera, que pueden estar plegados o
+     * recargados). `$excluirId` es el id de esa misma recepción: sin él, la
+     * propia recepción que se está guardando se encontrararía a sí misma.
+     *
      * Además de los borradores y las finalizadas, cuenta la que quedó en
      * `error` cuando el ERP la rechazó por duplicado: reintentarla siempre
      * termina en el mismo error.
      */
-    protected function comprobanteYaIngresado(?int $excluirId = null): ?Recepcion
+    protected function comprobanteYaIngresado(?int $excluirId = null, ?Recepcion $referencia = null): ?Recepcion
     {
+        $proveedor = $referencia?->proveedor_cod ?? $this->proveedor;
+        $ptovta = $referencia?->ptovta ?? $this->ptovta;
+        $hoja = $referencia?->hoja ?? $this->hoja;
+        $comprobante = $referencia?->comprobante ?? $this->comprobante;
+
         return Recepcion::query()
             ->where(function ($query) {
                 $query->whereIn('estado', ['borrador', 'finalizada'])
@@ -356,10 +495,10 @@ class RecepcionMercaderia extends Page
                             ->whereRaw('mensaje LIKE ?', ['%duplicados del n_mero de comprobante%']);
                     });
             })
-            ->whereRaw('CAST(proveedor_cod AS UNSIGNED) = ?', [(int) $this->proveedor])
-            ->whereRaw('CAST(ptovta AS UNSIGNED) = ?', [(int) $this->ptovta])
-            ->whereRaw('CAST(hoja AS UNSIGNED) = ?', [(int) $this->hoja])
-            ->whereRaw('CAST(comprobante AS UNSIGNED) = ?', [(int) $this->comprobante])
+            ->whereRaw('CAST(proveedor_cod AS UNSIGNED) = ?', [(int) $proveedor])
+            ->whereRaw('CAST(ptovta AS UNSIGNED) = ?', [(int) $ptovta])
+            ->whereRaw('CAST(hoja AS UNSIGNED) = ?', [(int) $hoja])
+            ->whereRaw('CAST(comprobante AS UNSIGNED) = ?', [(int) $comprobante])
             ->when($excluirId, fn ($query) => $query->where('id', '!=', $excluirId))
             ->latest('id')
             ->first();
@@ -530,6 +669,18 @@ class RecepcionMercaderia extends Page
         if (! $recepcion || ! $recepcion->detalles()->exists()) {
 
             $this->notificacion('Sin artículos', 'No hay ninguna recepción con artículos cargados.', 'danger');
+
+            return;
+        }
+
+        // Misma validación que al iniciar, ahora justo antes de llamar al
+        // ERP: si el comprobante ya existe (acá o en el ERP) no se envía
+        // nada y se avisa; si no existe, se guarda.
+        if ($bloqueo = $this->bloqueoDeDuplicado($recepcion)) {
+
+            [$titulo, $cuerpo] = $bloqueo;
+
+            $this->notificacion($titulo, $cuerpo, 'danger');
 
             return;
         }

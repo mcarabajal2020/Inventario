@@ -162,4 +162,27 @@ class ComprobanteErpTest extends TestCase
         $this->assertNull($this->erp->buscar(2, 2, 14487));
         $this->assertNull($this->erp->buscar(1, 3, 14487));
     }
+
+    public function test_recepcion_en_erp_no_filtra_por_proveedor(): void
+    {
+        // Es la regla con la que valida el ERP al guardar: el número ya es
+        // recepción de otro proveedor y el paso3 lo rechaza igual.
+        $this->stkmov(1, 2, '12023');
+
+        $fila = $this->erp->recepcionEnErp(1, 2);
+
+        $this->assertNotNull($fila);
+        $this->assertSame('stkmov', $fila['origen']);
+        $this->assertSame('12023', $fila['proveedor_cod']);
+        $this->assertSame('Carlos', $fila['usuario']);
+    }
+
+    public function test_recepcion_en_erp_devuelve_null_si_no_existe(): void
+    {
+        $this->stkmov(1, 2, '12023');
+
+        $this->assertNull($this->erp->recepcionEnErp(1, 3));
+        $this->assertNull($this->erp->recepcionEnErp(2, 2));
+        $this->assertNull($this->erp->recepcionEnErp(1, 77412));
+    }
 }

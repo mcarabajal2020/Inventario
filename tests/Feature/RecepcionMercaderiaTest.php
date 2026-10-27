@@ -483,6 +483,26 @@ class RecepcionMercaderiaTest extends TestCase
         $this->assertDatabaseCount('recepciones', 0);
     }
 
+    public function test_al_iniciar_ejecuta_el_paso1_antes_del_paso2(): void
+    {
+        // El ERP devuelve 500 al paso2 si en esa sesión todavía no corrió el
+        // paso1 (depósito y proveedor), así que el orden de las llamadas se
+        // fija con este test: si se rompe, la validación deja de ejecutarse.
+        $this->fakeSis();
+
+        $this->iniciarRecepcion();
+
+        $pasos = Http::recorded()
+            ->map(fn (array $par) => $par[0]->url())
+            ->filter(fn (string $url) => str_contains($url, '/recepcion-mercaderia/paso1/')
+                || str_contains($url, '/recepcion-mercaderia/paso2/'))
+            ->map(fn (string $url) => str_contains($url, '/paso1/') ? 'paso1' : 'paso2')
+            ->values()
+            ->all();
+
+        $this->assertSame(['paso1', 'paso2'], $pasos);
+    }
+
     public function test_permite_reintentar_un_comprobante_que_fallo_por_otro_motivo(): void
     {
         $this->fakeSis();

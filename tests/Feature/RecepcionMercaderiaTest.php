@@ -72,8 +72,8 @@ class RecepcionMercaderiaTest extends TestCase
             '*/compras-proveedores/cuentas/*' => Http::response([
                 ['ctacod' => 'P1', 'ctanom' => 'Proveedor Test'],
             ]),
-        ], $adicional, [
             '*/stock/movimientos/numeracion/*' => Http::response(['manual' => true]),
+        ], $adicional, [
             '*' => Http::response([]),
         ]));
     }
@@ -353,16 +353,15 @@ class RecepcionMercaderiaTest extends TestCase
         });
     }
 
-    public function test_usa_el_comprobante_siguiente_cuando_el_erp_no_acepta_manual(): void
+    public function test_envia_el_comprobante_cargado_en_remcbtnro(): void
     {
-        // Recepción (cbtcod 80): el ERP responde manual:false y devuelve en
-        // "siguiente" el número que corresponde. Si se manda el cargado a mano
-        // responde "Debe ingresar el número de comprobante manualmente".
+        // El ERP espera el número de comprobante en `remcbtnro` (no en
+        // `cbtnro`) con el valor que cargó el usuario: la pantalla original de
+        // recepción tiene el campo Comprobante siempre `required` y lo manda
+        // tal cual, sin numeración automática. Si `remcbtnro` no viene, el ERP
+        // lo recibe NULL y contesta "Debe ingresar el número de comprobante
+        // manualmente".
         $this->fakeSis([
-            '*/stock/movimientos/numeracion/80/*' => Http::response([
-                'manual' => false,
-                'siguiente' => 121163,
-            ]),
             '*/articulos/*' => Http::response([
                 ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
             ]),
@@ -379,71 +378,12 @@ class RecepcionMercaderiaTest extends TestCase
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/recepcion-mercaderia/paso3/')
-                && $request['remcbtnro'] === '121163'
-                && $request['cemcod'] == 1;
-        });
-
-        // El número que quedó guardado es el del ERP, no el cargado a mano.
-        $this->assertSame('121163', Recepcion::first()->comprobante);
-    }
-
-    public function test_respeta_el_comprobante_cargado_cuando_el_erp_admite_manual(): void
-    {
-        // Otros tipos de movimiento sí traen manual:true: ahí manda el número
-        // que cargó el usuario.
-        $this->fakeSis([
-            '*/stock/movimientos/numeracion/80/*' => Http::response([
-                'manual' => true,
-                'siguiente' => 999,
-            ]),
-            '*/articulos/*' => Http::response([
-                ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
-            ]),
-            '*/recepcion-mercaderia/paso1/*' => Http::response(['message' => 'OK']),
-            '*/recepcion-mercaderia/paso2/*' => Http::response(['message' => 'OK']),
-            '*/recepcion-mercaderia/paso3/*' => Http::response(['message' => 'Movimiento de stock creado']),
-        ]);
-
-        $this->iniciarRecepcion()
-            ->set('codigo', 'A1')
-            ->set('cantidad', 4)
-            ->call('agregar')
-            ->call('finalizar');
-
-        Http::assertSent(function ($request) {
-            return str_contains($request->url(), '/recepcion-mercaderia/paso3/')
-                && $request['remcbtnro'] === '3';
+                && $request['remcbtnro'] === '3'
+                && $request['cemcod'] == 1
+                && ! array_key_exists('cbtnro', $request->data());
         });
 
         $this->assertSame('3', Recepcion::first()->comprobante);
-    }
-
-    public function test_no_rompe_si_no_se_puede_consultar_la_numeracion(): void
-    {
-        // Si el endpoint de numeración falla se respeta el número cargado:
-        // la carga no se corta por no poder consultar la serie.
-        $this->fakeSis([
-            '*/stock/movimientos/numeracion/80/*' => Http::response('boom', 500),
-            '*/articulos/*' => Http::response([
-                ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
-            ]),
-            '*/recepcion-mercaderia/paso1/*' => Http::response(['message' => 'OK']),
-            '*/recepcion-mercaderia/paso2/*' => Http::response(['message' => 'OK']),
-            '*/recepcion-mercaderia/paso3/*' => Http::response(['message' => 'Movimiento de stock creado']),
-        ]);
-
-        $this->iniciarRecepcion()
-            ->set('codigo', 'A1')
-            ->set('cantidad', 4)
-            ->call('agregar')
-            ->call('finalizar');
-
-        Http::assertSent(function ($request) {
-            return str_contains($request->url(), '/recepcion-mercaderia/paso3/')
-                && $request['remcbtnro'] === '3';
-        });
-
-        $this->assertSame('finalizada', Recepcion::first()->estado);
     }
 
     public function test_se_detiene_si_el_proveedor_no_existe(): void

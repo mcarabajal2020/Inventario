@@ -748,32 +748,19 @@ class RecepcionMercaderia extends Page
 
             $this->api()->recepcionPaso2($fecha, $recepcion->ptovta, $recepcion->hoja);
 
-            // Recepción de mercadería (cbtcod 80): el ERP responde
-            // `manual: false`, o sea que **no acepta** un número escrito a
-            // mano y devuelve en `siguiente` el que corresponde según la serie
-            // del punto de venta. Si se manda otro número el ERP contesta
-            // *"Debe ingresar el número de comprobante manualmente"* y no
-            // guarda nada. Sólo se pisa el número si el ERP lo pide; si la
-            // consulta falla (o el tipo admite manual) se respeta el cargado.
-            $numeracion = $this->api()->numeracionComprobante(
-                '80',
-                (string) $recepcion->ptovta,
-                (string) $recepcion->deposito_cod
-            );
-
-            $comprobante = (string) $recepcion->comprobante;
-
-            if (($numeracion['manual'] ?? true) === false && filled($numeracion['siguiente'] ?? null)) {
-                $comprobante = (string) $numeracion['siguiente'];
-
-                $recepcion->update(['comprobante' => $comprobante]);
-            }
-
+            // El ERP espera el número de comprobante en `remcbtnro` con el
+            // valor que cargó el usuario: la pantalla original de recepción
+            // (`recepcionMercaderia.blade.php`) tiene el campo Comprobante
+            // siempre `required` y lo manda tal cual, sin numeración
+            // automática (esa lógica existe sólo en la pantalla de *movimiento*
+            // de mercadería). Si el número no viene en `remcbtnro` el ERP lo
+            // recibe NULL y contesta *"Debe ingresar el número de comprobante
+            // manualmente"*.
             $respuesta = $this->api()->recepcionPaso3(
                 $fecha,
                 $recepcion->ptovta,
                 $recepcion->proveedor_cod,
-                $comprobante,
+                $recepcion->comprobante,
                 $recepcion->deposito_cod,
                 $articulos
             );

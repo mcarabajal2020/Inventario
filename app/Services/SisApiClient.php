@@ -331,41 +331,73 @@ class SisApiClient
 
     /**
      * Recepción de mercadería - paso 2: punto de venta y hoja.
+     *
+     * Se mandan como **enteros**: el ERP guarda `punto_venta`/`hoja` en la
+     * sesión (`session['temp']`) y con esos valores construye el `id` de
+     * `stkmov` (`I3080{cemcod:04d}{cbtnro:08d}...`). Comparado contra la
+     * sesión de la pantalla que sí guarda (decodificada de `django_session`):
+     * la pantalla tiene `"punto_venta": 1, "hoja": 1` (ints, salen de columnas
+     * numéricas de MySQL) y la nuestra `"punto_venta": "1"` (strings) — con
+     * strings el ERP generaba IDs con formato distinto y moría en Python justo
+     * después del INSERT de la cabecera, sin escribir el detalle.
      */
     public function recepcionPaso2(string $fecha, string $puntoVenta, string $hoja): string
     {
         return $this->mensaje($this->post("/{$this->empresa()}/compras-proveedores/recepcion-mercaderia/paso2/", [
             'fecha_emision' => $fecha,
-            'punto_venta' => $puntoVenta,
-            'hoja' => $hoja,
+            'punto_venta' => (int) $puntoVenta,
+            'hoja' => (int) $hoja,
         ]));
     }
 
     /**
      * Recepción de mercadería - paso 3: guarda la factura con su detalle.
      *
-     * El ERP espera el número de comprobante en `remcbtnro` (no en `cbtnro`):
-     * la pantalla que funciona (`Darregueira` → `ApiController::setArticulo`)
-     * manda exactamente `cemcod, cbtfec, ctacod, remcbtnro, remcbtfec, succod,
-     * depcod, articulos`. Sin `remcbtnro` el ERP recibe el número como NULL y
-     * `stkmov.cbtnro` es NOT NULL: creaba la cabecera y truena en 500 antes de
-     * escribir el detalle.
+     * Tipos y campos replicados de la pantalla que funciona en producción
+     * (`Darregueira`) — la secuencia se verificó con general_log del MySQL y
+     * con la sesión ERP decodificada (`django_session`):
      *
-     * Cada artículo va sólo con `artcod` y `stkcan`, igual que la pantalla.
+     * - `cemcod`, `cbtnro`, `remcbtnro` van como **enteros**: la pantalla los
+     *   manda desde columnas numéricas y el ERP hace aritmética con ellos
+     *   justo después del INSERT de la cabecera (`numnro = cbtnro + 1` en
+     *   `fsmnumer` — la recepción exitosa de la pantalla grabó `numnro = 7`
+     *   = 6+1). Con nuestro `"6"` de string el Python revienta con TypeError
+     *   sin llegar a ejecutar ninguna SQL más: la cabecera quedaba huérfana.
+     * - `cbtnro` además lo lee la validación inicial: sin él contesta *"Debe
+     *   ingresar el número de comprobante manualmente"* —probado contra la
+     *   API real: `remcbtnro` sólo truena ahí, `cbtnro` pasa—. Los dos campos
+     *   se mandan juntos por si el ERP usa `remcbtnro` en otra rama (es el
+     *   campo del payload original de la pantalla).
+     * - `stkcan` entero cuando no tiene decimales (la pantalla manda ints).
+     *
+     * Cada artículo va sólo con `artcod` y `stkcan`, igual que la pantalla
+     * (`depcod`/`stkpre` viajan a nivel de cabecera).
      *
      * @param  array{artcod: string, stkcan: float}[]  $articulos
      */
     public function recepcionPaso3(string $fecha, string $puntoVenta, string $proveedor, string $comprobante, string $deposito, array $articulos): array
     {
+        $detalles = array_map(function ($articulo) {
+            $stkcan = $articulo['stkcan'];
+
+            // Entero cuando es integral, como la pantalla (columnas int).
+            if (is_float($stkcan) && floor($stkcan) == $stkcan) {
+                $articulo['stkcan'] = (int) $stkcan;
+            }
+
+            return $articulo;
+        }, $articulos);
+
         $payload = [
-            'cemcod' => $puntoVenta,
+            'cemcod' => (int) $puntoVenta,
             'cbtfec' => $fecha,
             'ctacod' => $proveedor,
-            'remcbtnro' => $comprobante,
+            'cbtnro' => (int) $comprobante,
+            'remcbtnro' => (int) $comprobante,
             'remcbtfec' => $fecha,
             'succod' => $this->sucursalDelDeposito($deposito),
             'depcod' => $deposito,
-            'articulos' => $articulos,
+            'articulos' => $detalles,
         ];
 
         // El cuerpo exacto que se manda al ERP: con esto se pudo comparar

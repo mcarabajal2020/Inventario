@@ -282,9 +282,11 @@ class RecepcionMercaderiaTest extends TestCase
             return str_contains($request->url(), '/recepcion-mercaderia/paso3/')
                 && $request['depcod'] === 'D1'
                 && $request['ctacod'] === 'P1'
-                && $request['remcbtnro'] === '3'
+                && $request['cbtnro'] === 3
+                && $request['remcbtnro'] === 3
                 && $request['articulos'][0]['artcod'] === 'A1'
-                && $request['articulos'][0]['stkcan'] == 4;
+                && $request['articulos'][0]['stkcan'] === 4
+                && ! array_key_exists('stkpre', $request['articulos'][0]);
         });
     }
 
@@ -353,14 +355,13 @@ class RecepcionMercaderiaTest extends TestCase
         });
     }
 
-    public function test_envia_el_comprobante_cargado_en_remcbtnro(): void
+    public function test_envia_el_comprobante_en_cbtnro_y_remcbtnro(): void
     {
-        // El ERP espera el número de comprobante en `remcbtnro` (no en
-        // `cbtnro`) con el valor que cargó el usuario: la pantalla original de
-        // recepción tiene el campo Comprobante siempre `required` y lo manda
-        // tal cual, sin numeración automática. Si `remcbtnro` no viene, el ERP
-        // lo recibe NULL y contesta "Debe ingresar el número de comprobante
-        // manualmente".
+        // El ERP necesita el numero en LOS DOS campos: `cbtnro` pasa la
+        // validacion inicial ("Debe ingresar el numero de comprobante
+        // manualmente" sin el) y `remcbtnro` es el que manda la pantalla
+        // original; con `cbtnro` solo el ERP creaba la cabecera y moria en
+        // Python antes de escribir el detalle (capturado en general_log).
         $this->fakeSis([
             '*/articulos/*' => Http::response([
                 ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
@@ -378,9 +379,13 @@ class RecepcionMercaderiaTest extends TestCase
 
         Http::assertSent(function ($request) {
             return str_contains($request->url(), '/recepcion-mercaderia/paso3/')
-                && $request['remcbtnro'] === '3'
-                && $request['cemcod'] == 1
-                && ! array_key_exists('cbtnro', $request->data());
+                && $request['cbtnro'] === 3
+                && $request['remcbtnro'] === 3
+                && $request['cemcod'] === 1
+                && $request['articulos'][0]['artcod'] === 'A1'
+                && $request['articulos'][0]['stkcan'] === 4
+                && ! array_key_exists('depcod', $request['articulos'][0])
+                && ! array_key_exists('stkpre', $request['articulos'][0]);
         });
 
         $this->assertSame('3', Recepcion::first()->comprobante);

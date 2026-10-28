@@ -87,6 +87,42 @@ class SisApiClient
     }
 
     /**
+     * Numeración del siguiente comprobante para un tipo de movimiento y centro
+     * emisor dados.
+     *
+     * Devuelve `{manual: bool, siguiente: int|string}`. Para recepción de
+     * mercadería (`cbtcod = 80`) el ERP responde `manual: false`: **no acepta**
+     * un número escrito a mano y devuelve en `siguiente` el que le corresponde
+     * según la serie del punto de venta. Si `manual` es true, el ERP sí deja que
+     * el usuario escriba el número (caso de otros tipos de movimiento).
+     *
+     * Si algo falla se devuelve un arreglo vacío y la caller decide: nunca se
+     * rompe la carga por no poder consultar la numeración.
+     *
+     * @return array{manual: bool, siguiente: int|string}
+     */
+    public function numeracionComprobante(string $cbtcod, string $cemcod, string $depcod = ''): array
+    {
+        $succod = blank($depcod) ? 1 : $this->sucursalDelDeposito($depcod);
+
+        try {
+            $datos = $this->get("/{$this->empresa()}/stock/movimientos/numeracion/{$cbtcod}/?"
+                . http_build_query(['succod' => (string) $succod, 'cemcod' => $cemcod]));
+        } catch (Exception $e) {
+            return [];
+        }
+
+        if (! is_array($datos)) {
+            return [];
+        }
+
+        return [
+            'manual' => (bool) ($datos['manual'] ?? true),
+            'siguiente' => $datos['siguiente'] ?? '',
+        ];
+    }
+
+    /**
      * Sucursales de la empresa: [{succod, sucnom}, ...]
      */
     public function sucursales(): array
@@ -344,6 +380,15 @@ class SisApiClient
     /**
      * Recepción de mercadería - paso 3: guarda la factura con su detalle.
      *
+     * El ERP espera el número de comprobante en `remcbtnro` (no en `cbtnro`):
+     * la pantalla que funciona (`Darregueira` → `ApiController::setArticulo`)
+     * manda exactamente `cemcod, cbtfec, ctacod, remcbtnro, remcbtfec, succod,
+     * depcod, articulos`. Sin `remcbtnro` el ERP recibe el número como NULL y
+     * `stkmov.cbtnro` es NOT NULL: creaba la cabecera y truena en 500 antes de
+     * escribir el detalle.
+     *
+     * Cada artículo va sólo con `artcod` y `stkcan`, igual que la pantalla.
+     *
      * @param  array{artcod: string, stkcan: float}[]  $articulos
      */
     public function recepcionPaso3(string $fecha, string $puntoVenta, string $proveedor, string $comprobante, string $deposito, array $articulos): array
@@ -352,7 +397,7 @@ class SisApiClient
             'cemcod' => $puntoVenta,
             'cbtfec' => $fecha,
             'ctacod' => $proveedor,
-            'cbtnro' => $comprobante,
+            'remcbtnro' => $comprobante,
             'remcbtfec' => $fecha,
             'succod' => $this->sucursalDelDeposito($deposito),
             'depcod' => $deposito,

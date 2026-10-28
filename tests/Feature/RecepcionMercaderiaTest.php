@@ -175,6 +175,26 @@ class RecepcionMercaderiaTest extends TestCase
         $this->assertDatabaseCount('recepcion_detalles', 0);
     }
 
+    public function test_al_leer_el_articulo_vacia_la_cantidad_y_enfoca_el_campo(): void
+    {
+        // Con un artículo cargado y una cantidad previa, leer el código deja
+        // la cantidad vacía (sin residuo de la captura anterior) y pide el foco
+        // para que el operador siga tipeando la cantidad.
+        $this->fakeSis([
+            '*/articulos/*' => Http::response([
+                ['artcod' => 'A1', 'artdes' => 'Artículo Test'],
+            ]),
+        ]);
+
+        $component = $this->iniciarRecepcion()
+            ->set('cantidad', 7)
+            ->set('codigo', 'A1');
+
+        $component->assertSet('cantidad', null)
+            ->assertDispatched('focus-cantidad')
+            ->assertSet('descripcionArticulo', 'Artículo Test');
+    }
+
     public function test_al_encontrar_varios_articulos_muestra_la_lista_para_elegir(): void
     {
         $this->fakeSis([

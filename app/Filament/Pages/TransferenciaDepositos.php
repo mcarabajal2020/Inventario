@@ -38,7 +38,7 @@ class TransferenciaDepositos extends Page
     /** Descripción del artículo escaneado, para mostrarla antes de confirmar. */
     public string $descripcionArticulo = '';
 
-    public float $cantidad = 1;
+    public ?float $cantidad = 1;
 
     /** Coincidencias de la búsqueda cuando hay más de un artículo. */
     public array $resultados = [];
@@ -213,6 +213,10 @@ class TransferenciaDepositos extends Page
     /**
      * Cuando cambia el código escaneado se busca la descripción del artículo
      * para mostrarla antes de confirmar la cantidad.
+     *
+     * Si el código corresponde a UN artículo (lectura exitosa), la cantidad se
+     * vacía y se pide el foco en ese campo: así el operador escanea y sigue
+     * tipeando la cantidad sin residuos de la captura anterior.
      */
     public function updatedCodigo(): void
     {
@@ -236,6 +240,10 @@ class TransferenciaDepositos extends Page
 
         if (count($articulos) === 1) {
             $this->descripcionArticulo = (string) ($articulos[0]['articulo']['descripcion'] ?? '');
+
+            // Artículo leído: cantidad vacía y con foco.
+            $this->cantidad = null;
+            $this->dispatch('focus-cantidad');
         }
     }
 
@@ -331,6 +339,17 @@ class TransferenciaDepositos extends Page
             $this->notificacion('Artículo no encontrado', 'No hay stock de ese artículo en el depósito origen.', 'danger');
 
             $this->codigo = '';
+
+            return;
+        }
+
+        // La cantidad llega vacía desde la lectura del artículo: si no se
+        // tipeó aún, no se guarda (la columna es NOT NULL).
+        if ($this->cantidad <= 0) {
+
+            $this->notificacion('Cantidad inválida', 'Ingrese una cantidad mayor a cero.', 'danger');
+
+            $this->dispatch('focus-cantidad');
 
             return;
         }

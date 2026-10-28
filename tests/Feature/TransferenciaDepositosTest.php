@@ -164,6 +164,26 @@ class TransferenciaDepositosTest extends TestCase
         $this->assertDatabaseCount('transferencia_detalles', 0);
     }
 
+    public function test_al_leer_el_articulo_vacia_la_cantidad_y_enfoca_el_campo(): void
+    {
+        // Mismo comportamiento que en recepción: leer el código deja la
+        // cantidad vacía (sin residuo de la captura anterior) y pide el foco
+        // para que el operador siga tipeando la cantidad.
+        $this->fakeSis([
+            '*/consulta-stock/*' => Http::response([
+                ['articulo' => ['codigo' => 'A1', 'descripcion' => 'Cepillo Dental Uno'], 'stock' => 5],
+            ]),
+        ]);
+
+        $component = $this->iniciarTransferencia()
+            ->set('cantidad', 7)
+            ->set('codigo', 'A1');
+
+        $component->assertSet('cantidad', null)
+            ->assertDispatched('focus-cantidad')
+            ->assertSet('descripcionArticulo', 'Cepillo Dental Uno');
+    }
+
     public function test_al_encontrar_varios_articulos_muestra_la_lista_para_elegir(): void
     {
         $this->fakeSis([

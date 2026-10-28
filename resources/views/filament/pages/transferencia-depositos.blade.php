@@ -246,7 +246,6 @@
                             <x-filament::input
                                 type="text"
                                 wire:model.live.debounce.400ms="codigo"
-                                x-on:keydown.enter="$focus('#campo-cantidad')"
                                 id="campo-codigo"
                                 autofocus
                                 placeholder="Escanear o escribir descripción"
@@ -686,6 +685,22 @@
                     let input = document.querySelector('input[type=text]');
 
                     if (input) {
+                        input.focus();
+                    }
+
+                }, 100);
+
+            });
+
+            // Después de leer el artículo: la cantidad queda vacía y con foco.
+            Livewire.on('focus-cantidad', () => {
+
+                setTimeout(() => {
+
+                    let input = document.getElementById('campo-cantidad');
+
+                    if (input) {
+                        input.value = '';
                         input.focus();
                     }
 

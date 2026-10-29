@@ -95,6 +95,31 @@ class ConsultaStockTest extends TestCase
         $this->assertSame('', $component->get('codigo'));
     }
 
+    public function test_ordena_los_saldos_por_numero_de_deposito(): void
+    {
+        // El ERP devuelve los depósitos en cualquier orden: la app los lista
+        // por número de depósito (1000, 3000, 4000, 5000, 6000, 8000, 9000).
+        $this->fakeSis([
+            '*/stock/consulta-stock/*' => Http::response([
+                $this->fila('A1', 'Artículo Test', '9000', 'CAB', 1),
+                $this->fila('A1', 'Artículo Test', '4000', 'Depósito Jacinto Arauz', 1),
+                $this->fila('A1', 'Artículo Test', '1000', 'Depósito Darregueira', 1),
+                $this->fila('A1', 'Artículo Test', '8000', 'Depósito Felipe Sola', 1),
+                $this->fila('A1', 'Artículo Test', '3000', 'Depósito Salliquelo', 1),
+                $this->fila('A1', 'Artículo Test', '6000', 'Depósito Doblas', 1),
+                $this->fila('A1', 'Artículo Test', '5000', 'Depósito Villa Iris', 1),
+            ]),
+        ]);
+
+        $component = Livewire::test(ConsultaStock::class)
+            ->set('codigo', '7790000000001')
+            ->call('consultar');
+
+        $orden = collect($component->get('saldos'))->pluck('depcod')->all();
+
+        $this->assertSame(['1000', '3000', '4000', '5000', '6000', '8000', '9000'], $orden);
+    }
+
     public function test_muestra_el_articulo_aunque_no_tenga_stock(): void
     {
         $this->fakeSis([

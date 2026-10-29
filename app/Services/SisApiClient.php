@@ -306,7 +306,9 @@ class SisApiClient
         }
 
         return collect($agrupado)
-            ->sortBy(fn ($saldo) => $saldo['depnom'] ?? '', SORT_NATURAL | SORT_FLAG_CASE)
+            // Orden por número de depósito (1000, 3000, 4000, 5000, 6000,
+            // 8000, 9000), que es el que usan los depósitos del ERP.
+            ->sortBy(fn ($saldo) => (int) $saldo['depcod'])
             ->values()
             ->map(function ($saldo) {
                 $saldo['stock'] = round($saldo['stock'], 2);

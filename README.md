@@ -62,6 +62,14 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 - Si el artículo no tiene stock en ningún depósito se busca igual en `/{empresa}/articulos/` para mostrar su código y descripción con el aviso *Sin stock en ningún depósito*; si no existe, avisa *Código no encontrado*.
 - Si el ERP no responde muestra el aviso correspondiente en lugar de un error.
 
+### Control de Diferencias (`/admin/control-diferencias`)
+- Se elige un **inventario** y se compara **lo contado en la colectora** (suma de `inventario_movimientos` por artículo) contra el **stock del depósito del inventario en el ERP** (`stksaldos` de `mutualnew`, leído directamente porque el endpoint completo de `consulta-stock` supera los 60 s; los números coinciden con los de la API).
+- Cada artículo queda en uno de tres estados: **Sin diferencia** (contado = stock), **Diferencia** (contado ≠ stock, con el número de unidades de más o de menos) y **No contado** (el ERP tiene existencia en ese depósito —incluidos los saldos negativos— y el artículo no aparece en el inventario). Los artículos **sin existencia y sin contar no se muestran**.
+- **Resumen** con los conteos de cada estado y el total del depósito. **Filtros** (Pendientes por defecto, Diferencias, No contados, Sin diferencia, Todos) con sus cantidades, **búsqueda** por código o descripción y **paginación** de 50 en 50.
+- El `artcod` de `stksaldos` viene a veces con espacios iniciales (campo `char(20)`), así que la comparación se hace con `TRIM`; las descripciones se resuelven contra `stkartic0` y el nombre del depósito contra `stkdepos`.
+- Botón **EXPORTAR EXCEL** con el filtro y la búsqueda actuales (artículo, descripción, contado, stock ERP, diferencia y estado), y botón **ACTUALIZAR** para volver a leer el ERP. También se llega desde el listado de Inventarios con la acción *Control de diferencias* (y con `?inventario={id}` para abrirlo directo).
+- Si el inventario **no tiene depósito** o no existe se muestra el aviso en lugar de comparar.
+
 ### API del SIS (ERP)
 - Cliente propio: `app/Services/SisApiClient.php` + `config/sis.php`.
 - Headers `Authorization: Token ...` y `Session`. La sesión se abre con `POST /sis/login/` **usando el usuario ERP logueado** y se cachea **8 horas por usuario y empresa**. `SIS_API_USER` / `SIS_API_PASSWORD` sirven sólo como respaldo si no hay sesión de aplicación.
@@ -324,22 +332,22 @@ php artisan serve        # http://127.0.0.1:8000
 php artisan test
 ```
 
-115 tests que cubren: filtro de estado del listado, bloqueo de inventarios cerrados, descripciones en los últimos movimientos, el logo del dashboard, la zona horaria del servidor (`APP_TIMEZONE`) en los registros, la interfaz en español (`APP_LOCALE=es`, listado y validaciones), **el apartado Inventario con descripción y depósito obligatorio (opciones del ERP, se guarda el código, aviso si el ERP no responde sin romper el formulario ni el listado)**, la sesión de la API del SIS (usuario logueado, cacheo, respaldo en `.env`, aviso cuando faltan credenciales y marca de falla cuando el ERP no responde) y los flujos de recepción de mercadería (hoja por defecto, comprobante duplicado local **por proveedor + punto de venta + hoja + comprobante**, comprobante ya existente en el ERP **por proveedor + punto de venta + comprobante, contra `comcbt` y `stkmov` con una base en memoria**, aviso y corte al guardar cuando el número ya es recepción del ERP **aunque sea de otro proveedor**, duplicado detectado por la API en paso2, el `paso1` antes que el `paso2` al iniciar, el `succod` real de la sucursal al finalizar, el **número de comprobante en `cbtnro` y `remcbtnro`** (los dos campos que usa el ERP, enteros como la pantalla original) y el **botón Limpiar registro** que borra un registro en `error` y sus artículos —sin tocar borradores ni finalizadas—, y la búsqueda de proveedor por CUIT o número de cuenta), transferencia entre depósitos y consulta de stock (agrupación por depósito **ordenada por número de depósito: 1000, 3000, 4000, 5000, 6000, 8000 y 9000**, artículos sin stock y **lista de coincidencias cuando la búsqueda por descripción trae varios artículos**), con `Http::fake()` sobre la API del ERP. En recepción y transferencia se verifica además que **cada captura sea un renglón** (aunque se repita el artículo), que *Quitar* borre sólo ese renglón, que al finalizar se envíe un renglón por cada captura, que la **cabecera se pueda plegar/desplegar** (queda plegada con resumen al iniciar) y que **al leer el artículo la cantidad quede vacía con el foco puesto** en ese campo para seguir tipeando.
+128 tests que cubren: filtro de estado del listado, bloqueo de inventarios cerrados, descripciones en los últimos movimientos, el logo del dashboard, la zona horaria del servidor (`APP_TIMEZONE`) en los registros, la interfaz en español (`APP_LOCALE=es`, listado y validaciones), **el apartado Inventario con descripción y depósito obligatorio (opciones del ERP, se guarda el código, aviso si el ERP no responde sin romper el formulario ni el listado)**, **el control de diferencias (comparación contra `stksaldos`, los tres estados con sus conteos en el resumen, el filtro por defecto Pendientes, la búsqueda por código o descripción, el `TRIM` del `artcod` del ERP, la exclusión de los artículos sin existencia sin contar, los avisos de inventario sin depósito o inexistente, la comparación sólo contra el depósito del inventario y la exportación a Excel)**, la sesión de la API del SIS (usuario logueado, cacheo, respaldo en `.env`, aviso cuando faltan credenciales y marca de falla cuando el ERP no responde) y los flujos de recepción de mercadería (hoja por defecto, comprobante duplicado local **por proveedor + punto de venta + hoja + comprobante**, comprobante ya existente en el ERP **por proveedor + punto de venta + comprobante, contra `comcbt` y `stkmov` con una base en memoria**, aviso y corte al guardar cuando el número ya es recepción del ERP **aunque sea de otro proveedor**, duplicado detectado por la API en paso2, el `paso1` antes que el `paso2` al iniciar, el `succod` real de la sucursal al finalizar, el **número de comprobante en `cbtnro` y `remcbtnro`** (los dos campos que usa el ERP, enteros como la pantalla original) y el **botón Limpiar registro** que borra un registro en `error` y sus artículos —sin tocar borradores ni finalizadas—, y la búsqueda de proveedor por CUIT o número de cuenta), transferencia entre depósitos y consulta de stock (agrupación por depósito **ordenada por número de depósito: 1000, 3000, 4000, 5000, 6000, 8000 y 9000**, artículos sin stock y **lista de coincidencias cuando la búsqueda por descripción trae varios artículos**), con `Http::fake()` sobre la API del ERP. En recepción y transferencia se verifica además que **cada captura sea un renglón** (aunque se repita el artículo), que *Quitar* borre sólo ese renglón, que al finalizar se envíe un renglón por cada captura, que la **cabecera se pueda plegar/desplegar** (queda plegada con resumen al iniciar) y que **al leer el artículo la cantidad quede vacía con el foco puesto** en ese campo para seguir tipeando.
 
 ## Estructura
 
 ```
 app/
-├── Exports/                  # InventarioExport, InventarioMovimientosExport
+├── Exports/                  # InventarioExport, InventarioMovimientosExport, ControlDiferenciasExport
 ├── Filament/
 │   ├── Pages/                # TomarInventario (colectora), RecepcionMercaderia,
-│   │                         # TransferenciaDepositos, ConsultaStock y Login
+│   │                         # TransferenciaDepositos, ConsultaStock, ControlDiferencias y Login
 │   ├── Resources/Inventarios # CRUD + tabla + acciones
 │   └── Widgets/              # LogoMutual (dashboard)
 ├── Models/                   # Inventario, InventarioMovimiento, Recepcion*, Transferencia*, User, Mutualnew\*
-├── Services/SisApiClient.php # Cliente HTTP de la API del SIS
+├── Services/                 # SisApiClient (API del SIS), ComparadorInventario (control de diferencias)
 └── Providers/                # Proveedor de autenticación siserpy
-resources/views/filament/     # Vistas de colectora, recepción, transferencia, consulta de stock y widget
+resources/views/filament/     # Vistas de colectora, recepción, transferencia, consulta de stock, control de diferencias y widget
 tests/Feature/                # Tests funcionales
 ```
 

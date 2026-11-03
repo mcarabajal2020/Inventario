@@ -117,6 +117,13 @@ public static function table(Table $table): Table
                 ->url(fn ($record) =>
                     url('/admin/tomar-inventario/' . $record->id)
                 ),
+                Action::make('diferencias')
+                ->label('Control de diferencias')
+                ->icon('heroicon-o-scale')
+                ->color('warning')
+                ->url(fn ($record) =>
+                    url('/admin/control-diferencias?inventario=' . $record->id)
+                ),
                 Action::make('exportar')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-arrow-down-tray')

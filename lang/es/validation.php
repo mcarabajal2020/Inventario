@@ -104,6 +104,7 @@ return [
 
     'attributes' => [
         'sucursal' => 'sucursal',
+        'descripcion' => 'descripción',
         'fecha_inicio' => 'fecha de inicio',
         'fecha_fin' => 'fecha de fin',
         'estado' => 'estado',

@@ -22,7 +22,8 @@ class UltimosMovimientosTest extends TestCase
         $ahora = date('Y-m-d H:i:s');
 
         $this->inventarioId = DB::table('inventarios')->insertGetId([
-            'sucursal' => 'SUC-TEST',
+            'descripcion' => 'DESC-TEST',
+            'deposito' => '1000',
             'fecha_inicio' => $ahora,
             'estado' => 'abierto',
             'user_id' => 'test',

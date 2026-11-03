@@ -20,6 +20,8 @@ use Filament\Actions\Action;
 use Filament\Tables\Filters\SelectFilter;
 use App\Exports\InventarioExport;
 use App\Exports\InventarioMovimientosExport;
+use App\Services\SisApiClient;
+use Exception;
 use Maatwebsite\Excel\Facades\Excel;
 
 
@@ -36,7 +38,13 @@ class InventarioResource extends Resource
     return $schema
         ->components([
 
-            Forms\Components\TextInput::make('sucursal')
+            Forms\Components\TextInput::make('descripcion')
+                ->label('Descripción')
+                ->required(),
+
+            Forms\Components\Select::make('deposito')
+                ->label('Depósito')
+                ->options(fn (): array => static::opcionesDepositos())
                 ->required(),
 
             Forms\Components\DateTimePicker::make('fecha_inicio')
@@ -63,8 +71,13 @@ public static function table(Table $table): Table
                 ->label('ID')
                 ->sortable(),
 
-            \Filament\Tables\Columns\TextColumn::make('sucursal')
-                ->label('Sucursal')
+            \Filament\Tables\Columns\TextColumn::make('descripcion')
+                ->label('Descripción')
+                ->searchable(),
+
+            \Filament\Tables\Columns\TextColumn::make('deposito')
+                ->label('Depósito')
+                ->formatStateUsing(fn ($state) => static::nombreDeposito((string) $state))
                 ->searchable(),
 
             \Filament\Tables\Columns\TextColumn::make('estado')
@@ -130,6 +143,46 @@ public static function table(Table $table): Table
                 }),    
         ]);
 }
+
+    /**
+     * Opciones del select de depósitos: código (depcod) => nombre (depnom),
+     * tomadas del ERP y cacheadas por SisApiClient.
+     *
+     * Si el ERP no responde (o falta la configuración) se devuelve una lista
+     * vacía: el select queda sin opciones y la validación "requerido" avisa en
+     * lugar de romper el formulario o el listado.
+     */
+    public static function opcionesDepositos(): array
+    {
+        try {
+            $depositos = app(SisApiClient::class)->depositos();
+        } catch (Exception) {
+            return [];
+        }
+
+        $opciones = [];
+
+        foreach ($depositos as $deposito) {
+            $depcod = (string) ($deposito['depcod'] ?? '');
+            $depnom = (string) ($deposito['depnom'] ?? '');
+
+            if ($depcod !== '') {
+                $opciones[$depcod] = $depnom !== '' ? $depnom : $depcod;
+            }
+        }
+
+        return $opciones;
+    }
+
+    /** Nombre del depósito para mostrar en el listado (fallback: el código). */
+    public static function nombreDeposito(string $depcod): string
+    {
+        if ($depcod === '') {
+            return '';
+        }
+
+        return static::opcionesDepositos()[$depcod] ?? $depcod;
+    }
 
     public static function getRelations(): array
     {

@@ -20,7 +20,8 @@ class HoraServidorTest extends TestCase
         $ahora = date('Y-m-d H:i:s');
 
         $this->inventarioId = DB::table('inventarios')->insertGetId([
-            'sucursal' => 'SUC-HORA-TEST',
+            'descripcion' => 'DESC-HORA-TEST',
+            'deposito' => '1000',
             'fecha_inicio' => $ahora,
             'estado' => 'abierto',
             'user_id' => 'test',

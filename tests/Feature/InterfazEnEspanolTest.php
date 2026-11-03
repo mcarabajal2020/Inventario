@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class InterfazEnEspanolTest extends TestCase
@@ -18,7 +19,8 @@ class InterfazEnEspanolTest extends TestCase
         $ahora = date('Y-m-d H:i:s');
 
         DB::table('inventarios')->insert([
-            'sucursal' => 'SUC-ES-TEST',
+            'descripcion' => 'DESC-ES-TEST',
+            'deposito' => '1000',
             'fecha_inicio' => $ahora,
             'estado' => 'abierto',
             'user_id' => 'test',
@@ -30,6 +32,14 @@ class InterfazEnEspanolTest extends TestCase
         $user->sisusrnom = 'Usuario Test';
 
         $this->actingAs($user);
+
+        // El listado resuelve el nombre del depósito contra el ERP.
+        Http::fake([
+            '*/stock/depositos/' => Http::response([
+                ['depcod' => '1000', 'depnom' => 'Depósito Darregueira'],
+            ]),
+            '*' => Http::response([]),
+        ]);
     }
 
     public function test_la_aplicacion_usa_el_espanol_como_idioma(): void
@@ -57,15 +67,21 @@ class InterfazEnEspanolTest extends TestCase
         $errores = validator(
             ['fecha_inicio' => 'no-es-fecha', 'cantidad' => 'texto'],
             [
-                'sucursal' => 'required',
+                'descripcion' => 'required',
+                'deposito' => 'required',
                 'fecha_inicio' => 'date',
                 'cantidad' => 'numeric|max:10',
             ]
         )->errors();
 
         $this->assertSame(
-            'El campo sucursal es obligatorio.',
-            $errores->first('sucursal')
+            'El campo descripción es obligatorio.',
+            $errores->first('descripcion')
+        );
+
+        $this->assertSame(
+            'El campo depósito es obligatorio.',
+            $errores->first('deposito')
         );
 
         $this->assertSame(

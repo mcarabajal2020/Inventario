@@ -6,6 +6,7 @@ use App\Filament\Pages\TomarInventario;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -24,7 +25,8 @@ class InventarioCerradoTest extends TestCase
         $ahora = date('Y-m-d H:i:s');
 
         $this->abiertoId = DB::table('inventarios')->insertGetId([
-            'sucursal' => 'SUC-ABIERTO-TEST',
+            'descripcion' => 'DESC-ABIERTO-TEST',
+            'deposito' => '1000',
             'fecha_inicio' => $ahora,
             'estado' => 'abierto',
             'user_id' => 'test',
@@ -33,7 +35,8 @@ class InventarioCerradoTest extends TestCase
         ]);
 
         $this->cerradoId = DB::table('inventarios')->insertGetId([
-            'sucursal' => 'SUC-CERRADO-TEST',
+            'descripcion' => 'DESC-CERRADO-TEST',
+            'deposito' => '3000',
             'fecha_inicio' => $ahora,
             'estado' => 'cerrado',
             'user_id' => 'test',
@@ -45,6 +48,15 @@ class InventarioCerradoTest extends TestCase
         $user->sisusrnom = 'Usuario Test';
 
         $this->actingAs($user);
+
+        // El listado resuelve el nombre del depósito contra el ERP.
+        Http::fake([
+            '*/stock/depositos/' => Http::response([
+                ['depcod' => '1000', 'depnom' => 'Depósito Darregueira'],
+                ['depcod' => '3000', 'depnom' => 'Depósito Salliquelo'],
+            ]),
+            '*' => Http::response([]),
+        ]);
     }
 
     public function test_el_boton_tomar_desaparece_cuando_el_inventario_esta_cerrado(): void

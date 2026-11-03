@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class Inventario extends Model
 {
     protected $fillable = [
-        'sucursal',
+        'descripcion',
+        'deposito',
         'fecha_inicio',
         'fecha_fin',
         'estado',

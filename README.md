@@ -15,8 +15,8 @@ Construida sobre **Laravel 13** con **Filament 5** (panel de administración) y 
 - El proveedor de autenticación `siserpy` valida contra el campo `sisusrseg` sin hashing, para mantener la compatibilidad con las contraseñas del ERP.
 
 ### Inventarios
-- **Alta / edición / baja** de inventarios con sucursal, fecha de inicio y estado (`abierto` / `cerrado`).
-- **Listado** con columnas ID, Sucursal, Estado (badge verde/rojo) y Fecha; búsqueda por sucursal, orden por ID descendente y **filtro de estado con "Abierto" por defecto**.
+- **Alta / edición / baja** de inventarios con descripción, **depósito (tomado del ERP: código 1000, 3000, …, obligatorio)**, fecha de inicio y estado (`abierto` / `cerrado`).
+- **Listado** con columnas ID, Descripción, Depósito (el nombre se resuelve desde el ERP), Estado (badge verde/rojo) y Fecha; búsqueda por descripción o depósito, orden por ID descendente y **filtro de estado con "Abierto" por defecto**.
 - **Acciones por fila**:
   - `Editar` — modificar la cabecera del inventario (incluido el estado).
   - `Tomar` — abre la colectora; **solo visible mientras el inventario esté abierto**.
@@ -97,7 +97,8 @@ erDiagram
 
     inventarios {
         id PK
-        sucursal
+        descripcion
+        deposito "código ERP, nullable en BD"
         fecha_inicio "datetime"
         fecha_fin "datetime, nullable"
         estado "abierto | cerrado"
@@ -183,7 +184,7 @@ erDiagram
 | Tabla | Columnas |
 | --- | --- |
 | `users` | `id`, `name`, `email`, `password`, `sisusrcod`, `sisusrseg`, timestamps |
-| `inventarios` | `id`, `sucursal`, `fecha_inicio`, `fecha_fin`, `estado`, `user_id`, timestamps |
+| `inventarios` | `id`, `descripcion`, `deposito`, `fecha_inicio`, `fecha_fin`, `estado`, `user_id`, timestamps |
 | `inventario_movimientos` | `id`, `inventario_id`, `artcod`, `codigo_barra`, `cantidad`, `ubicacion`, `usuario`, `created_at` |
 | `recepciones` | `id`, `fecha`, `deposito_cod`, `deposito_nom`, `proveedor_cod`, `proveedor_nom`, `ptovta`, `hoja`, `comprobante`, `estado`, `mensaje`, `user_id`, timestamps |
 | `recepcion_detalles` | `id`, `recepcion_id`, `artcod`, `artdes`, `cantidad`, timestamps |
@@ -293,7 +294,7 @@ php artisan serve        # http://127.0.0.1:8000
 ## Uso rápido
 
 1. Ingresar con un usuario del ERP.
-2. **Inventarios → + Nuevo**: cargar sucursal, fecha y estado *Abierto*.
+2. **Inventarios → + Nuevo**: cargar descripción, depósito (opciones del ERP), fecha y estado *Abierto*.
 3. En el listado (filtra abiertos por defecto) presionar **Tomar**.
 4. Escanear el código de barras → verificar artículo → cantidad y ubicación → **GUARDAR**.
 5. Repetir; los últimos 10 movimientos aparecen abajo.
@@ -323,7 +324,7 @@ php artisan serve        # http://127.0.0.1:8000
 php artisan test
 ```
 
-109 tests que cubren: filtro de estado del listado, bloqueo de inventarios cerrados, descripciones en los últimos movimientos, el logo del dashboard, la zona horaria del servidor (`APP_TIMEZONE`) en los registros, la interfaz en español (`APP_LOCALE=es`, listado y validaciones), la sesión de la API del SIS (usuario logueado, cacheo, respaldo en `.env`, aviso cuando faltan credenciales y marca de falla cuando el ERP no responde) y los flujos de recepción de mercadería (hoja por defecto, comprobante duplicado local **por proveedor + punto de venta + hoja + comprobante**, comprobante ya existente en el ERP **por proveedor + punto de venta + comprobante, contra `comcbt` y `stkmov` con una base en memoria**, aviso y corte al guardar cuando el número ya es recepción del ERP **aunque sea de otro proveedor**, duplicado detectado por la API en paso2, el `paso1` antes que el `paso2` al iniciar, el `succod` real de la sucursal al finalizar, el **número de comprobante en `cbtnro` y `remcbtnro`** (los dos campos que usa el ERP, enteros como la pantalla original) y el **botón Limpiar registro** que borra un registro en `error` y sus artículos —sin tocar borradores ni finalizadas—, y la búsqueda de proveedor por CUIT o número de cuenta), transferencia entre depósitos y consulta de stock (agrupación por depósito **ordenada por número de depósito: 1000, 3000, 4000, 5000, 6000, 8000 y 9000**, artículos sin stock y **lista de coincidencias cuando la búsqueda por descripción trae varios artículos**), con `Http::fake()` sobre la API del ERP. En recepción y transferencia se verifica además que **cada captura sea un renglón** (aunque se repita el artículo), que *Quitar* borre sólo ese renglón, que al finalizar se envíe un renglón por cada captura, que la **cabecera se pueda plegar/desplegar** (queda plegada con resumen al iniciar) y que **al leer el artículo la cantidad quede vacía con el foco puesto** en ese campo para seguir tipeando.
+115 tests que cubren: filtro de estado del listado, bloqueo de inventarios cerrados, descripciones en los últimos movimientos, el logo del dashboard, la zona horaria del servidor (`APP_TIMEZONE`) en los registros, la interfaz en español (`APP_LOCALE=es`, listado y validaciones), **el apartado Inventario con descripción y depósito obligatorio (opciones del ERP, se guarda el código, aviso si el ERP no responde sin romper el formulario ni el listado)**, la sesión de la API del SIS (usuario logueado, cacheo, respaldo en `.env`, aviso cuando faltan credenciales y marca de falla cuando el ERP no responde) y los flujos de recepción de mercadería (hoja por defecto, comprobante duplicado local **por proveedor + punto de venta + hoja + comprobante**, comprobante ya existente en el ERP **por proveedor + punto de venta + comprobante, contra `comcbt` y `stkmov` con una base en memoria**, aviso y corte al guardar cuando el número ya es recepción del ERP **aunque sea de otro proveedor**, duplicado detectado por la API en paso2, el `paso1` antes que el `paso2` al iniciar, el `succod` real de la sucursal al finalizar, el **número de comprobante en `cbtnro` y `remcbtnro`** (los dos campos que usa el ERP, enteros como la pantalla original) y el **botón Limpiar registro** que borra un registro en `error` y sus artículos —sin tocar borradores ni finalizadas—, y la búsqueda de proveedor por CUIT o número de cuenta), transferencia entre depósitos y consulta de stock (agrupación por depósito **ordenada por número de depósito: 1000, 3000, 4000, 5000, 6000, 8000 y 9000**, artículos sin stock y **lista de coincidencias cuando la búsqueda por descripción trae varios artículos**), con `Http::fake()` sobre la API del ERP. En recepción y transferencia se verifica además que **cada captura sea un renglón** (aunque se repita el artículo), que *Quitar* borre sólo ese renglón, que al finalizar se envíe un renglón por cada captura, que la **cabecera se pueda plegar/desplegar** (queda plegada con resumen al iniciar) y que **al leer el artículo la cantidad quede vacía con el foco puesto** en ese campo para seguir tipeando.
 
 ## Estructura
 

@@ -5,8 +5,10 @@ namespace Tests\Feature;
 use App\Filament\Pages\ControlDiferencias;
 use App\Models\Inventario;
 use App\Models\User;
+use App\Services\ComparadorInventario;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Maatwebsite\Excel\Facades\Excel;
@@ -52,6 +54,33 @@ class ControlDiferenciasTest extends TestCase
             $table->string('depnom');
         });
 
+        $schema->create('stkmov', function (Blueprint $table) {
+            $table->string('id')->primary();
+            $table->string('cbtfec');
+            $table->integer('tmscod')->default(0);
+            $table->string('inactivo')->default('0');
+        });
+
+        $schema->create('stkmovart', function (Blueprint $table) {
+            $table->string('id');
+            $table->integer('sec')->default(0);
+            $table->string('artcod');
+            $table->string('depcod');
+            $table->decimal('stkcan', 18, 6)->default(0);
+            $table->primary(['id', 'sec']);
+        });
+
+        $schema->create('stktmstk', function (Blueprint $table) {
+            $table->integer('tmscod')->primary();
+            $table->integer('afestk')->default(1);
+        });
+
+        // Tipos usados por los tests: uno que suma y uno que resta.
+        DB::connection('mutualnew')->table('stktmstk')->insert([
+            ['tmscod' => 2, 'afestk' => 1],
+            ['tmscod' => 51, 'afestk' => -1],
+        ]);
+
         $user = new User(['sisusrcod' => 'test-user']);
         $user->sisusrnom = 'Usuario Test';
 
@@ -91,14 +120,21 @@ class ControlDiferenciasTest extends TestCase
         ]);
     }
 
-    /** Existencia de un artículo en el depósito, según el ERP. */
+    /** Existencia de un artículo en el depósito, según el ERP (reemplaza). */
     private function stock(string $artcod, string $depcod, float $stkcan): void
     {
-        DB::connection('mutualnew')->table('stksaldos')->insert([
-            'artcod' => $artcod,
-            'depcod' => $depcod,
-            'stkcan' => $stkcan,
-        ]);
+        $actualizados = DB::connection('mutualnew')->table('stksaldos')
+            ->where('artcod', $artcod)
+            ->where('depcod', $depcod)
+            ->update(['stkcan' => $stkcan]);
+
+        if ($actualizados === 0) {
+            DB::connection('mutualnew')->table('stksaldos')->insert([
+                'artcod' => $artcod,
+                'depcod' => $depcod,
+                'stkcan' => $stkcan,
+            ]);
+        }
     }
 
     private function articulo(string $artcod, string $artdes): void
@@ -106,6 +142,29 @@ class ControlDiferenciasTest extends TestCase
         DB::connection('mutualnew')->table('stkartic0')->insert([
             'artcod' => $artcod,
             'artdes' => $artdes,
+        ]);
+    }
+
+    /** Cabecera de un movimiento en el ERP (fecha = cbtfec). */
+    private function movimiento(string $id, string $cbtfec, int $tmscod, string $inactivo = '0'): void
+    {
+        DB::connection('mutualnew')->table('stkmov')->insert([
+            'id' => $id,
+            'cbtfec' => $cbtfec,
+            'tmscod' => $tmscod,
+            'inactivo' => $inactivo,
+        ]);
+    }
+
+    /** Renglón de un movimiento: el efecto es stkcan × afestk del tipo. */
+    private function renglon(string $id, string $artcod, string $depcod, float $stkcan, int $sec = 1): void
+    {
+        DB::connection('mutualnew')->table('stkmovart')->insert([
+            'id' => $id,
+            'sec' => $sec,
+            'artcod' => $artcod,
+            'depcod' => $depcod,
+            'stkcan' => $stkcan,
         ]);
     }
 
@@ -330,7 +389,7 @@ class ControlDiferenciasTest extends TestCase
             ->call('exportar');
 
         Excel::assertDownloaded(
-            'control_diferencias_inventario_' . $inventario . '.xlsx',
+            'control_diferencias_inventario_' . $inventario . '_' . now()->toDateString() . '.xlsx',
             fn ($export) => $export->collection()->count() === 1
                 && $export->collection()->first()['estado'] === 'Diferencia'
                 && $export->collection()->first()['diferencia'] === 2.0
@@ -356,5 +415,193 @@ class ControlDiferenciasTest extends TestCase
 
         $response->assertOk();
         $response->assertSee('/admin/control-diferencias?inventario=' . $inventario, false);
+    }
+
+    /**
+     * Escenario compartido por los tests de fecha: el artículo 001 tiene
+     * stock vigente 47 en el depósito 1000 y tres movimientos:
+     *
+     *  - 2021-06-01 COMPRA (afestk +1): +50
+     *  - 2026-11-01 FACTURACIÓN (afestk -1): -3
+     *  - 2026-11-02 COMPRA inactiva (afestk +1): +10
+     *
+     * El punto medio del rango de fechas cae hacia2023, así que una fecha
+     * de2026 usa la dirección "vigente − posteriores" y una de2022 la
+     * dirección "suma de anteriores".
+     */
+    private function escenarioFecha(): int
+    {
+        $this->articulo('001', 'ARTICULO UNO');
+        $this->stock('001', '1000', 47);
+
+        $this->movimiento('M1', '2021-06-01 00:00:00', 2);
+        $this->renglon('M1', '001', '1000', 50);
+
+        $this->movimiento('M2', '2026-11-01 00:00:00', 51);
+        $this->renglon('M2', '001', '1000', 3);
+
+        $this->movimiento('M3', '2026-11-02 00:00:00', 2, '1');
+        $this->renglon('M3', '001', '1000', 10);
+
+        return $this->inventario();
+    }
+
+    /** Fecha reciente: stock = vigente − (−3 + 10) = 47 − 7 = 40. */
+    public function test_fecha_reciente_resta_los_movimientos_posteriores(): void
+    {
+        $inventario = $this->escenarioFecha();
+
+        $this->contar($inventario, '001', 40);
+
+        $component = Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', '2026-06-01')
+            ->set('filtro', 'todos');
+
+        $filas = collect($component->instance()->filasPaginadas());
+
+        $this->assertCount(1, $filas);
+        $this->assertSame(40.0, $filas->first()['stock']);
+        $this->assertSame('sin_diferencia', $filas->first()['estado']);
+    }
+
+    /** Fecha vieja: suma los movimientos anteriores al corte (+50). */
+    public function test_fecha_vieja_suma_los_movimientos_anteriores(): void
+    {
+        $inventario = $this->escenarioFecha();
+
+        $this->contar($inventario, '001', 50);
+
+        $component = Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', '2022-06-01')
+            ->set('filtro', 'todos');
+
+        $filas = collect($component->instance()->filasPaginadas());
+
+        $this->assertCount(1, $filas);
+        $this->assertSame(50.0, $filas->first()['stock']);
+        $this->assertSame('sin_diferencia', $filas->first()['estado']);
+    }
+
+    /** El saldo vigente refleja los movimientos anulados: se descuentan igual. */
+    public function test_los_movimientos_inactivos_tambien_descuentan(): void
+    {
+        $inventario = $this->escenarioFecha();
+
+        $component = Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', '2026-06-01')
+            ->set('filtro', 'todos');
+
+        $filas = collect($component->instance()->filasPaginadas());
+
+        //47 − (−3 + 10) = 40: el +10 inactivo también se resta.
+        $this->assertSame(40.0, $filas->first()['stock']);
+    }
+
+    /** Con la fecha de hoy se usa el stock vigente sin recalcular. */
+    public function test_con_la_fecha_de_hoy_se_usa_el_stock_vigente(): void
+    {
+        $inventario = $this->escenarioFecha();
+
+        $component = Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', now()->toDateString())
+            ->set('filtro', 'todos');
+
+        $filas = collect($component->instance()->filasPaginadas());
+
+        $this->assertSame(47.0, $filas->first()['stock']);
+
+        // El stock vigente no se cachea: siempre está actualizado.
+        $this->assertFalse(
+            Cache::has(app(ComparadorInventario::class)->claveStock('1000', now()->toDateString()))
+        );
+    }
+
+    /** El stock reconstruido se cachea y ACTUALIZAR lo vuelve a calcular. */
+    public function test_cachea_el_stock_reconstruido_y_lo_olvida_al_actualizar(): void
+    {
+        $inventario = $this->escenarioFecha();
+
+        $clave = app(ComparadorInventario::class)->claveStock('1000', '2026-06-01');
+
+        Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', '2026-06-01');
+
+        $this->assertTrue(Cache::has($clave));
+
+        // Con el stock ya cacheado, un cambio en el ERP no se refleja hasta
+        // que se pide actualizar.
+        $this->stock('001', '1000', 100);
+
+        $filas = collect(
+            Livewire::test(ControlDiferencias::class)
+                ->set('inventario', $inventario)
+                ->set('fecha', '2026-06-01')
+                ->set('filtro', 'todos')
+                ->instance()
+                ->filasPaginadas()
+        );
+
+        $this->assertSame(40.0, $filas->first()['stock']);
+
+        Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', '2026-06-01')
+            ->call('actualizar');
+
+        // ACTUALIZAR borra el resultado viejo y el render del mismo request
+        // lo vuelve a calcular con el stock nuevo (100 − 7 = 93).
+        $this->assertSame(93.0, Cache::get($clave)['001']['stock']);
+
+        $filas = collect(
+            Livewire::test(ControlDiferencias::class)
+                ->set('inventario', $inventario)
+                ->set('fecha', '2026-06-01')
+                ->set('filtro', 'todos')
+                ->instance()
+                ->filasPaginadas()
+        );
+
+        $this->assertSame(93.0, $filas->first()['stock']);
+    }
+
+    /** La fecha se ajusta al rango con datos y se avisa. */
+    public function test_ajusta_la_fecha_fuera_de_rango(): void
+    {
+        $inventario = $this->inventario();
+
+        Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', '2015-01-01')
+            ->assertSet('fecha', ComparadorInventario::FECHA_MINIMA)
+            ->assertNotified();
+
+        Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', now()->addYear()->toDateString())
+            ->assertSet('fecha', now()->toDateString())
+            ->assertNotified();
+
+        Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', 'no-es-fecha')
+            ->assertSet('fecha', now()->toDateString())
+            ->assertNotified();
+    }
+
+    /** En pantalla se ve contra qué fecha se está comparando. */
+    public function test_muestra_en_pantalla_la_fecha_de_corte(): void
+    {
+        $inventario = $this->escenarioFecha();
+
+        Livewire::test(ControlDiferencias::class)
+            ->set('inventario', $inventario)
+            ->set('fecha', '2026-06-01')
+            ->assertSee('01/06/2026')
+            ->assertSee('reconstruido con los movimientos del ERP');
     }
 }

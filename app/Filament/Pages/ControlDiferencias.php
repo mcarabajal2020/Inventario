@@ -38,6 +38,13 @@ class ControlDiferencias extends Page
     /** Página actual de la tabla. */
     public int $pagina = 1;
 
+    /**
+     * Fecha de corte del stock (Y-m-d). La de hoy usa el stock vigente
+     * sin recalcular; cualquier otra fecha reconstruye el stock con los
+     * movimientos del ERP.
+     */
+    public string $fecha = '';
+
     /** Filas completas de la comparación (se recalcula en cada request). */
     protected ?array $cacheComparacion = null;
 
@@ -49,12 +56,72 @@ class ControlDiferencias extends Page
 
     public function mount(): void
     {
+        $this->fecha = now()->toDateString();
+
         $parametro = (int) request()->query('inventario', 0);
 
         if ($parametro > 0) {
             $this->inventario = $parametro;
         }
     }
+
+    public function updatedFecha(): void
+    {
+        $normalizada = $this->normalizarFecha($this->fecha);
+
+        if ($normalizada !== $this->fecha) {
+            $this->fecha = $normalizada;
+        }
+
+        $this->pagina = 1;
+
+        $this->limpiarCaches();
+    }
+
+    /**
+     * La fecha se acepta sólo en el rango con datos del ERP; lo que quede
+     * fuera se ajusta y se avisa.
+     */
+    protected function normalizarFecha(?string $fecha): string
+    {
+        $hoy = now()->toDateString();
+
+        if (blank($fecha)) {
+            return $hoy;
+        }
+
+        $partes = explode('-', (string) $fecha);
+
+        if (count($partes) !== 3 || ! checkdate((int) $partes[1], (int) $partes[2], (int) $partes[0])) {
+            $this->avisoFecha('Fecha inválida: se usa la de hoy.');
+
+            return $hoy;
+        }
+
+        if ($fecha < ComparadorInventario::FECHA_MINIMA) {
+            $this->avisoFecha('La fecha no puede ser anterior al ' . ComparadorInventario::FECHA_MINIMA . ' (inicio de los datos del ERP).');
+
+            return ComparadorInventario::FECHA_MINIMA;
+        }
+
+        if ($fecha > $hoy) {
+            $this->avisoFecha('La fecha no puede ser futura: se usa la de hoy.');
+
+            return $hoy;
+        }
+
+        return $fecha;
+    }
+
+    protected function avisoFecha(string $mensaje): void
+    {
+        Notification::make()
+            ->title('Fecha de corte')
+            ->body($mensaje)
+            ->warning()
+            ->send();
+    }
+
 
     public function updatedInventario(): void
     {
@@ -100,11 +167,19 @@ class ControlDiferencias extends Page
     }
 
     /**
-     * Fuerza una consulta nueva al ERP: los datos se recalculan en cada
-     * request, así que el clic en sí ya trae el stock actualizado.
+     * Fuerza una consulta nueva al ERP: borra el stock reconstruido a la
+     * fecha cacheado y vuelve a calcularlo (con la fecha de hoy no hay
+     * nada cacheado, el stock vigente se lee en cada request).
      */
     public function actualizar(): void
     {
+        $inventario = $this->inventarioModelo();
+
+        if ($inventario && filled($inventario->deposito) && filled($this->fecha)) {
+            app(ComparadorInventario::class)
+                ->olvidarStock((string) $inventario->deposito, $this->fecha);
+        }
+
         $this->limpiarCaches();
     }
 
@@ -124,9 +199,49 @@ class ControlDiferencias extends Page
 
         return Excel::download(
             new ControlDiferenciasExport($filas),
-            'control_diferencias_inventario_' . $this->inventario . '.xlsx'
+            'control_diferencias_inventario_' . $this->inventario . '_' . $this->fecha . '.xlsx'
         );
     }
+
+    /** Fecha de corte formateada para mostrar (03/11/2026). */
+    public function fechaFormateada(): string
+    {
+        return $this->formatearFecha($this->fecha);
+    }
+
+    /** Límite inferior del selector: inicio de los datos del ERP. */
+    public function fechaMinima(): string
+    {
+        return ComparadorInventario::FECHA_MINIMA;
+    }
+
+    /** Límite superior del selector: hoy. */
+    public function fechaMaxima(): string
+    {
+        return now()->toDateString();
+    }
+
+    public function fechaMinimaFormateada(): string
+    {
+        return $this->formatearFecha($this->fechaMinima());
+    }
+
+    public function fechaHoyFormateada(): string
+    {
+        return $this->formatearFecha($this->fechaMaxima());
+    }
+
+    protected function formatearFecha(string $fecha): string
+    {
+        $partes = explode('-', $fecha);
+
+        if (count($partes) !== 3) {
+            return $fecha;
+        }
+
+        return "{$partes[2]}/{$partes[1]}/{$partes[0]}";
+    }
+
 
     /** Inventario seleccionado (o null si no hay). */
     public function inventarioModelo(): ?Inventario
@@ -317,7 +432,7 @@ class ControlDiferencias extends Page
         }
 
         try {
-            $filas = app(ComparadorInventario::class)->comparar($inventario);
+            $filas = app(ComparadorInventario::class)->comparar($inventario, $this->fecha ?: null);
         } catch (Exception $e) {
             Notification::make()
                 ->title('No se pudo comparar')

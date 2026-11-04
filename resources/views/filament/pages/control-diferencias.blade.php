@@ -12,32 +12,66 @@
                 Compará lo contado en el inventario contra el stock que tiene ese depósito en el ERP
             </x-slot>
 
-            <div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
 
-                <label class="block text-sm font-medium mb-2">
-                    Inventario
-                </label>
+                <div>
 
-                <x-filament::input.wrapper>
+                    <label class="block text-sm font-medium mb-2">
+                        Inventario
+                    </label>
 
-                    <select
-                        wire:model.live="inventario"
-                        class="fi-input block w-full border-none bg-transparent py-1.5 text-base text-gray-950 outline-none transition duration-75 placeholder:text-gray-400 focus:ring-0 dark:text-white sm:text-sm sm:leading-6"
-                    >
-                        <option value="">Seleccione...</option>
+                    <x-filament::input.wrapper>
 
-                        @foreach ($this->inventariosDisponibles() as $inv)
+                        <select
+                            wire:model.live="inventario"
+                            class="fi-input block w-full border-none bg-transparent py-1.5 text-base text-gray-950 outline-none transition duration-75 placeholder:text-gray-400 focus:ring-0 dark:text-white sm:text-sm sm:leading-6"
+                        >
+                            <option value="">Seleccione...</option>
 
-                            <option value="{{ $inv['id'] }}">
-                                {{ $inv['etiqueta'] }}
-                            </option>
+                            @foreach ($this->inventariosDisponibles() as $inv)
 
-                        @endforeach
+                                <option value="{{ $inv['id'] }}">
+                                    {{ $inv['etiqueta'] }}
+                                </option>
 
-                    </select>
+                            @endforeach
 
-                </x-filament::input.wrapper>
+                        </select>
 
+                    </x-filament::input.wrapper>
+
+                </div>
+
+                <div>
+
+                    <label class="block text-sm font-medium mb-2">
+                        Stock al día
+                    </label>
+
+                    <x-filament::input.wrapper>
+
+                        <x-filament::input
+                            type="date"
+                            wire:model.live="fecha"
+                            max="{{ $this->fechaMaxima() }}"
+                            min="{{ $this->fechaMinima() }}"
+                        />
+
+                    </x-filament::input.wrapper>
+
+                    <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        Hoy: {{ $this->fechaHoyFormateada() }} — con datos desde el {{ $this->fechaMinimaFormateada() }}.
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div
+                wire:loading
+                class="mt-3 rounded-lg bg-info-50 px-3 py-2 text-sm font-medium text-info-700 dark:bg-info-900/20 dark:text-info-400"
+            >
+                Recalculando el stock contra el ERP…
             </div>
 
             @if (filled($this->aviso()))
@@ -84,6 +118,13 @@
 
                 <x-slot name="heading">
                     Resumen
+                </x-slot>
+
+                <x-slot name="description">
+                    Comparando contra el stock del depósito al {{ $this->fechaFormateada() }}
+                    @if ($this->fecha < now()->toDateString())
+                        <span class="font-semibold text-warning-600 dark:text-warning-400">(reconstruido con los movimientos del ERP)</span>
+                    @endif
                 </x-slot>
 
                 <div class="grid grid-cols-2 gap-4 md:grid-cols-5">

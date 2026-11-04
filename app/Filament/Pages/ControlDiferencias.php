@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Exports\ControlDiferenciasExport;
 use App\Models\Inventario;
 use App\Services\ComparadorInventario;
+use App\Services\ControlAcceso;
 use Exception;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -22,6 +23,13 @@ class ControlDiferencias extends Page
     protected static ?string $title = 'Control de Diferencias';
 
     protected static ?string $slug = 'control-diferencias';
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && ControlAcceso::habilitado(ControlAcceso::usuarioActual(), 'control-diferencias');
+    }
+
 
     /** Filas por página de la tabla. */
     public const POR_PAGINA = 50;

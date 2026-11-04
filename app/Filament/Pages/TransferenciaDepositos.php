@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\Transferencia;
 use App\Models\TransferenciaDetalle;
+use App\Services\ControlAcceso;
 use App\Services\SisApiClient;
 use Exception;
 use Filament\Notifications\Notification;
@@ -22,6 +23,13 @@ class TransferenciaDepositos extends Page
     protected static ?string $title = 'Transferencia entre Depósitos';
 
     protected static ?string $slug = 'transferencias';
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && ControlAcceso::habilitado(ControlAcceso::usuarioActual(), 'transferencias');
+    }
+
 
     public ?int $transferencia = null;
 

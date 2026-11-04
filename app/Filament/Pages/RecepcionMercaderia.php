@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Recepcion;
 use App\Models\RecepcionDetalle;
 use App\Services\ComprobanteErp;
+use App\Services\ControlAcceso;
 use App\Services\SisApiClient;
 use Exception;
 use Filament\Notifications\Notification;
@@ -23,6 +24,13 @@ class RecepcionMercaderia extends Page
     protected static ?string $title = 'Recepción de Mercadería';
 
     protected static ?string $slug = 'recepcion-mercaderia';
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && ControlAcceso::habilitado(ControlAcceso::usuarioActual(), 'recepcion');
+    }
+
 
     public ?int $recepcion = null;
 

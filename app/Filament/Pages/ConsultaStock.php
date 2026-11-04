@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Services\ControlAcceso;
 use App\Services\SisApiClient;
 use Exception;
 use Filament\Notifications\Notification;
@@ -18,6 +19,12 @@ class ConsultaStock extends Page
     protected static ?string $title = 'Consulta de Stock';
 
     protected static ?string $slug = 'consulta-stock';
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && ControlAcceso::habilitado(ControlAcceso::usuarioActual(), 'consulta-stock');
+    }
 
     /** Código escaneado: código de barras o código del artículo. */
     public string $codigo = '';

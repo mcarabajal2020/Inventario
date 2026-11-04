@@ -8,6 +8,7 @@ use App\Filament\Resources\Inventarios\Pages\ListInventarios;
 use App\Filament\Resources\Inventarios\Schemas\InventarioForm;
 use App\Filament\Resources\Inventarios\Tables\InventariosTable;
 use App\Models\Inventario;
+use App\Services\ControlAcceso;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -30,6 +31,12 @@ class InventarioResource extends Resource
     protected static ?string $model = Inventario::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return parent::shouldRegisterNavigation()
+            && ControlAcceso::habilitado(ControlAcceso::usuarioActual(), 'inventarios');
+    }
 
     protected static ?string $recordTitleAttribute = 'Inventario';
 

@@ -32,6 +32,9 @@ class ControlDiferenciasTest extends TestCase
                 'database' => ':memory:',
                 'prefix' => '',
             ],
+            // Control de Diferencias es restringido por defecto: el
+            // usuario de los tests entra como admin del .env.
+            'recursos.admins' => ['test-user'],
         ]);
 
         DB::purge('mutualnew');
@@ -389,7 +392,7 @@ class ControlDiferenciasTest extends TestCase
             ->call('exportar');
 
         Excel::assertDownloaded(
-            'control_diferencias_inventario_' . $inventario . '_' . now()->toDateString() . '.xlsx',
+            'control_diferencias_inventario_'.$inventario.'_'.now()->toDateString().'.xlsx',
             fn ($export) => $export->collection()->count() === 1
                 && $export->collection()->first()['estado'] === 'Diferencia'
                 && $export->collection()->first()['diferencia'] === 2.0
@@ -414,7 +417,7 @@ class ControlDiferenciasTest extends TestCase
         $response = $this->get('/admin/inventarios');
 
         $response->assertOk();
-        $response->assertSee('/admin/control-diferencias?inventario=' . $inventario, false);
+        $response->assertSee('/admin/control-diferencias?inventario='.$inventario, false);
     }
 
     /**
@@ -496,7 +499,7 @@ class ControlDiferenciasTest extends TestCase
 
         $filas = collect($component->instance()->filasPaginadas());
 
-        //47 − (−3 + 10) = 40: el +10 inactivo también se resta.
+        // 47 − (−3 + 10) = 40: el +10 inactivo también se resta.
         $this->assertSame(40.0, $filas->first()['stock']);
     }
 

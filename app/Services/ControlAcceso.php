@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\Auth;
  * Habilitación de recursos (secciones del menú) por usuario.
  *
  * Los usuarios viven en el ERP y los permisos en la tabla local
- * `usuario_recursos`: sin fila, el recurso está habilitado. La sección
- * Usuarios exige además figurar en el `SIS_ADMINS` del .env.
+ * `usuario_recursos`. Una fila manda sobre el default; sin fila, los
+ * recursos marcados como "restringidos" (Usuarios y Control de
+ * Diferencias) sólo los tienen los administradores del `SIS_ADMINS`.
  */
 class ControlAcceso
 {
@@ -38,7 +39,7 @@ class ControlAcceso
             return false;
         }
 
-        return in_array((string) $usuario->sisusrcod, self::admins(), true);
+        return in_array(trim((string) $usuario->sisusrcod), self::admins(), true);
     }
 
     /**
@@ -51,11 +52,32 @@ class ControlAcceso
         return config('recursos.admins', []);
     }
 
+    /** ¿El recurso está restringido por defecto (sólo SIS_ADMINS)? */
+    public static function esRestringido(string $recurso): bool
+    {
+        return (bool) (self::catalogo()[$recurso]['restringido'] ?? false);
+    }
+
+    /**
+     * Estado de un recurso sin fila en `usuario_recursos`: los
+     * restringidos (Usuarios, Control de Diferencias) sólo los tienen los
+     * administradores del .env; el resto está habilitado para todos.
+     */
+    public static function porDefecto(string $sisusrcod, string $recurso): bool
+    {
+        if (self::esRestringido($recurso)) {
+            return in_array(trim($sisusrcod), self::admins(), true);
+        }
+
+        return true;
+    }
+
     /**
      * ¿Tiene el usuario el recurso habilitado?
      *
-     * Sin fila en `usuario_recursos` está habilitado. El recurso
-     * `usuarios` exige además ser admin por .env.
+     * Una fila en `usuario_recursos` manda sobre el valor por defecto
+     * (tanto para habilitar como para bloquear, aunque el usuario sea
+     * admin). Sin fila, vale el default del recurso.
      */
     public static function habilitado(?User $usuario, string $recurso): bool
     {
@@ -63,21 +85,16 @@ class ControlAcceso
             return false;
         }
 
-        $habilitado = UsuarioRecurso::query()
+        $guardado = UsuarioRecurso::query()
             ->where('sisusrcod', $usuario->sisusrcod)
             ->where('recurso', $recurso)
             ->value('habilitado');
 
-        // null = sin fila = habilitado por defecto.
-        if ($habilitado !== null && ! (bool) $habilitado) {
-            return false;
+        if ($guardado !== null) {
+            return (bool) $guardado;
         }
 
-        if ($recurso === 'usuarios') {
-            return self::esAdmin($usuario);
-        }
-
-        return true;
+        return self::porDefecto((string) $usuario->sisusrcod, $recurso);
     }
 
     /** ¿Puede entrar a la sección Usuarios? */

@@ -81,7 +81,9 @@
                 </x-slot>
 
                 <x-slot name="description">
-                    Los recursos sin tocar están habilitados para todos los usuarios del ERP.
+                    Los recursos comunes sin tocar están habilitados para todos los usuarios del ERP.
+                    Usuarios y Control de Diferencias son restringidos: por defecto sólo los tienen los
+                    administradores del .env (SIS_ADMINS), salvo que se habilite a mano desde acá.
                 </x-slot>
 
                 <div class="overflow-x-auto">
@@ -118,6 +120,14 @@
 
                                     <td class="px-4 py-3 text-sm font-medium">
                                         {{ $recurso['titulo'] }}
+
+                                        @if (\App\Services\ControlAcceso::esRestringido($clave))
+
+                                            <span class="ms-2 inline-flex items-center rounded-full bg-warning-50 px-2 py-0.5 text-xs font-medium text-warning-700 ring-1 ring-inset ring-warning-600/20 dark:bg-warning-400/10 dark:text-warning-400">
+                                                Sólo admins
+                                            </span>
+
+                                        @endif
                                     </td>
 
                                     <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">

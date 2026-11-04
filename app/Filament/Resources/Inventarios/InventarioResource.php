@@ -128,6 +128,10 @@ public static function table(Table $table): Table
                 ->label('Control de diferencias')
                 ->icon('heroicon-o-scale')
                 ->color('warning')
+                ->hidden(fn () => ! ControlAcceso::habilitado(
+                    ControlAcceso::usuarioActual(),
+                    'control-diferencias'
+                ))
                 ->url(fn ($record) =>
                     url('/admin/control-diferencias?inventario=' . $record->id)
                 ),

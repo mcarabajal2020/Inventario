@@ -105,15 +105,15 @@ class ControlAccesoTest extends TestCase
     }
 
     /* ----------------------------------------------------------------
-     |  Acceso por defecto: todo habilitado
+     |  Acceso por defecto
      * ------------------------------------------------------------- */
 
-    public function test_por_defecto_todos_los_recursos_estan_habilitados(): void
+    public function test_por_defecto_los_recursos_comunes_estan_habilitados(): void
     {
         foreach (array_keys(ControlAcceso::catalogo()) as $recurso) {
-            // La sección Usuarios exige ser admin por .env (SIS_ADMINS),
-            // no depende de la tabla: se aserta aparte.
-            if ($recurso === 'usuarios') {
+            // Usuarios y Control de Diferencias son restringidos: sin
+            // fila sólo los tienen los admins del .env (se asierta abajo).
+            if (ControlAcceso::esRestringido($recurso)) {
                 continue;
             }
 
@@ -123,15 +123,36 @@ class ControlAccesoTest extends TestCase
             );
         }
 
-        $this->assertFalse(
-            ControlAcceso::habilitado($this->usuario('operario'), 'usuarios'),
-            'La sección Usuarios no debería estar habilitada para un no admin'
-        );
-
         $this->get('/admin/inventarios')->assertOk();
         $this->get('/admin/consulta-stock')->assertOk();
-        $this->get('/admin/control-diferencias')->assertOk();
         $this->get('/admin/transferencias')->assertOk();
+    }
+
+    public function test_por_defecto_los_restringidos_no_estan_habilitados_para_no_admins(): void
+    {
+        foreach (['usuarios', 'control-diferencias'] as $recurso) {
+            $this->assertTrue(ControlAcceso::esRestringido($recurso));
+
+            $this->assertFalse(
+                ControlAcceso::habilitado($this->usuario('operario'), $recurso),
+                "El recurso {$recurso} no debería estar habilitado para un no admin"
+            );
+        }
+
+        // La URL directa redirige al menú (recurso bloqueado).
+        $this->get('/admin/control-diferencias')->assertRedirect('/admin');
+        $this->get('/admin/usuarios')->assertRedirect('/admin');
+    }
+
+    public function test_por_defecto_los_restringidos_si_estan_habilitados_para_admins(): void
+    {
+        $this->actingAs($this->usuario('admin-erp'));
+
+        $this->assertTrue(ControlAcceso::habilitado($this->usuario('admin-erp'), 'usuarios'));
+        $this->assertTrue(ControlAcceso::habilitado($this->usuario('admin-erp'), 'control-diferencias'));
+
+        $this->get('/admin/control-diferencias')->assertOk();
+        $this->get('/admin/usuarios')->assertOk();
     }
 
     /* ----------------------------------------------------------------
@@ -226,21 +247,42 @@ class ControlAccesoTest extends TestCase
      |  Sección Usuarios
      * ------------------------------------------------------------- */
 
-    public function test_la_seccion_usuarios_solo_es_accesible_para_admins(): void
+    public function test_la_seccion_usuarios_solo_es_accesible_por_admin_o_habilitacion_manual(): void
     {
-        // Operario: no entra aunque la fila diga habilitado.
+        // Operario sin fila: no entra.
+        $this->get('/admin/usuarios')->assertRedirect('/admin');
+
+        // Admin del .env: entra sin necesidad de fila.
+        $this->actingAs($this->usuario('admin-erp'));
+
+        $this->get('/admin/usuarios')->assertOk();
+
+        // Habilitada manualmente desde la pantalla: entra aunque no sea
+        // admin del .env.
+        $this->actingAs($this->usuario('operario'));
+
         UsuarioRecurso::query()->create([
             'sisusrcod' => 'operario',
             'recurso' => 'usuarios',
             'habilitado' => true,
         ]);
 
-        $this->get('/admin/usuarios')->assertRedirect('/admin');
-
-        // Admin: entra.
-        $this->actingAs($this->usuario('admin-erp'));
-
         $this->get('/admin/usuarios')->assertOk();
+    }
+
+    public function test_un_restringido_habilitado_manualmente_tambien_se_ve_en_el_menu(): void
+    {
+        UsuarioRecurso::query()->create([
+            'sisusrcod' => 'operario',
+            'recurso' => 'control-diferencias',
+            'habilitado' => true,
+        ]);
+
+        $respuesta = $this->get('/admin');
+
+        $respuesta->assertOk();
+        $respuesta->assertSee('/admin/control-diferencias', false);
+        $respuesta->assertSee('/admin/inventarios', false);
     }
 
     public function test_el_admin_ve_la_pantalla_de_usuarios_con_el_catalogo(): void
@@ -294,7 +336,19 @@ class ControlAccesoTest extends TestCase
             'recurso' => 'usuarios',
         ]);
 
-        // Sí puede bloquearle la sección a otro admin.
+        // Sí puede alternarle la sección a otro usuario: para un no
+        // admin el default está bloqueado, así que el primer click la
+        // habilita y el segundo la vuelve a bloquear.
+        Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario')
+            ->call('alternar', 'usuarios');
+
+        $this->assertDatabaseHas('usuario_recursos', [
+            'sisusrcod' => 'operario',
+            'recurso' => 'usuarios',
+            'habilitado' => true,
+        ]);
+
         Livewire::test(Usuarios::class)
             ->set('usuario', 'operario')
             ->call('alternar', 'usuarios');

@@ -4,14 +4,15 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Administradores de la sección Usuarios
+    | Administradores
     |--------------------------------------------------------------------------
     |
-    | Sólo estos usuarios (código `sisusrcod` del ERP, separados por coma)
-    | ven y pueden entrar a /admin/usuarios para habilitar o bloquear
-    | recursos al resto. Además, el recurso "usuarios" del catálogo tiene
-    | que estar habilitado para ellos (la pantalla no permite quitárselo
-    | a uno mismo, para no quedar afuera).
+    | Estos usuarios (código `sisusrcod` del ERP, separados por coma) ven
+    | por defecto los recursos marcados como "restringidos" (Usuarios y
+    | Control de Diferencias) además de todos los comunes. Un admin puede
+    | habilitar o bloquear cualquier recurso a cualquier usuario desde
+    | /admin/usuarios; la pantalla no le permite quitarse la sección
+    | Usuarios a sí mismo, para no quedar afuera.
     |
     */
 
@@ -28,6 +29,11 @@ return [
     | Cada recurso tiene un título (para los avisos y el menú) y las rutas
     | del panel que bloquea. Toda página nueva del panel hay que agregarla
     | acá: las rutas que no figuran no se bloquean.
+    |
+    | 'restringido' => true: sin fila en `usuario_recursos` sólo lo tienen
+    | los administradores del SIS_ADMINS; el resto necesita que se lo
+    | habilite manualmente desde /admin/usuarios. Sin la marca, el recurso
+    | está habilitado para todos los usuarios del ERP por defecto.
     |
     | La raíz '/admin' se compara en forma exacta (si no, taparía a todas
     | las demás); el resto se compara por prefijo, así que
@@ -60,10 +66,12 @@ return [
         'control-diferencias' => [
             'titulo' => 'Control de Diferencias',
             'rutas' => ['/admin/control-diferencias'],
+            'restringido' => true,
         ],
         'usuarios' => [
             'titulo' => 'Usuarios',
             'rutas' => ['/admin/usuarios'],
+            'restringido' => true,
         ],
     ],
 

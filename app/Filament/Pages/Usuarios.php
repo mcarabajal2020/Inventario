@@ -150,14 +150,17 @@ class Usuarios extends Page
 
         // Se lee el estado actual de la BD (no el de la vista): así el
         // botón alterna siempre el valor real, aunque la pantalla no
-        // haya cargado los permisos todavía.
+        // haya cargado los permisos todavía. Sin fila manda el default
+        // del recurso (los restringidos dependen del usuario elegido).
         $guardado = UsuarioRecurso::query()
             ->where('sisusrcod', (string) $this->usuario)
             ->where('recurso', $recurso)
             ->value('habilitado');
 
-        // null = sin fila = habilitado por defecto.
-        $actual = $guardado === null || (bool) $guardado;
+        $actual = $guardado !== null
+            ? (bool) $guardado
+            : ControlAcceso::porDefecto((string) $this->usuario, $recurso);
+
         $habilitado = ! $actual;
 
         $this->permisos[$recurso] = $habilitado;
@@ -214,10 +217,11 @@ class Usuarios extends Page
             ->pluck('habilitado', 'recurso');
 
         foreach (array_keys(ControlAcceso::catalogo()) as $recurso) {
-            // Sin fila: habilitado por defecto.
+            // Sin fila: el default del recurso (los restringidos sólo
+            // están habilitados si el usuario elegido es admin).
             $this->permisos[$recurso] = isset($guardados[$recurso])
                 ? (bool) $guardados[$recurso]
-                : true;
+                : ControlAcceso::porDefecto((string) $this->usuario, $recurso);
         }
     }
 }

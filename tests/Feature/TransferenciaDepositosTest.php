@@ -391,4 +391,61 @@ class TransferenciaDepositosTest extends TestCase
             ->assertSee('SIS_API_TOKEN')
             ->assertSee('config:clear');
     }
+
+    public function test_los_ultimos_movimientos_vienen_ocultos_con_un_boton_para_mostrarlos(): void
+    {
+        $this->fakeSis();
+
+        // Nombre de destino que no aparece en el select de la cabecera.
+        Transferencia::create([
+            'fecha' => '2026-10-26',
+            'deposito_origen_cod' => 'D1',
+            'deposito_origen_nom' => 'Depósito Central',
+            'deposito_destino_cod' => 'D9',
+            'deposito_destino_nom' => 'Depósito Remoto',
+            'comprobante' => '99',
+            'estado' => 'finalizada',
+        ]);
+
+        $component = Livewire::test(TransferenciaDepositos::class);
+
+        // Por defecto la lista está oculta y sólo se ofrece el botón.
+        $this->assertFalse($component->instance()->movimientosVisible);
+        $component->assertSee('Mostrar últimos movimientos')
+            ->assertDontSee('Depósito Remoto');
+
+        // Al presionar el botón se despliega.
+        $component->call('alternarMovimientos');
+
+        $this->assertTrue($component->instance()->movimientosVisible);
+        $component->assertSee('Ocultar últimos movimientos')
+            ->assertSee('Depósito Remoto');
+
+        // Y se vuelve a ocultar.
+        $component->call('alternarMovimientos');
+
+        $this->assertFalse($component->instance()->movimientosVisible);
+        $component->assertSee('Mostrar últimos movimientos')
+            ->assertDontSee('Depósito Remoto');
+    }
+
+    public function test_los_ultimos_movimientos_muestran_el_usuario_que_las_creo(): void
+    {
+        $this->fakeSis();
+
+        Transferencia::create([
+            'fecha' => '2026-10-26',
+            'deposito_origen_cod' => 'D1',
+            'deposito_origen_nom' => 'Depósito Central',
+            'deposito_destino_cod' => 'D2',
+            'deposito_destino_nom' => 'Depósito Sucursal',
+            'comprobante' => '99',
+            'estado' => 'borrador',
+            'user_id' => 'otro-usuario',
+        ]);
+
+        Livewire::test(TransferenciaDepositos::class)
+            ->call('alternarMovimientos')
+            ->assertSee('otro-usuario');
+    }
 }

@@ -534,6 +534,24 @@
                 Últimas recepciones
             </x-slot>
 
+            <x-slot name="description">
+                Para identificar quién deja recepciones abiertas
+            </x-slot>
+
+            <div class="mb-4 flex justify-end">
+
+                <x-filament::button
+                    wire:click="alternarMovimientos"
+                    size="sm"
+                    color="gray"
+                >
+                    {{ $movimientosVisible ? 'Ocultar últimos movimientos' : 'Mostrar últimos movimientos' }}
+                </x-filament::button>
+
+            </div>
+
+            @if ($movimientosVisible)
+
             <div class="hidden md:block overflow-x-auto">
 
                 <table class="w-full divide-y divide-gray-200 dark:divide-white/10">
@@ -564,6 +582,10 @@
 
                             <th class="px-4 py-3 text-left text-sm font-semibold">
                                 Mensaje
+                            </th>
+
+                            <th class="px-4 py-3 text-left text-sm font-semibold">
+                                Usuario
                             </th>
 
                             <th class="px-4 py-3 text-left text-sm font-semibold">
@@ -625,6 +647,10 @@
                                 </td>
 
                                 <td class="px-4 py-3 text-sm">
+                                    {{ $this->nombreUsuario($recepcionItem->user_id) }}
+                                </td>
+
+                                <td class="px-4 py-3 text-sm">
 
                                     @if($recepcionItem->estado === 'error')
 
@@ -651,7 +677,7 @@
 
                             <tr>
 
-                                <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
+                                <td colspan="8" class="px-4 py-10 text-center text-sm text-gray-500">
                                     Todavía no se registraron recepciones
                                 </td>
 
@@ -723,6 +749,11 @@
 
                         @endif
 
+                        <div class="mt-1 text-sm">
+                            <span class="font-medium">Usuario:</span>
+                            {{ $this->nombreUsuario($recepcionItem->user_id) }}
+                        </div>
+
                         @if($recepcionItem->estado === 'error')
 
                             <div class="mt-3">
@@ -751,6 +782,8 @@
                 @endforelse
 
             </div>
+
+            @endif
 
         </x-filament::section>
 

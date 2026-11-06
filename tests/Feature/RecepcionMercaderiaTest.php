@@ -732,6 +732,7 @@ class RecepcionMercaderiaTest extends TestCase
         ]);
 
         Livewire::test(RecepcionMercaderia::class)
+            ->call('alternarMovimientos')
             ->assertSee('4-12345 / 7')
             ->assertDontSee('4-7-12345');
     }
@@ -858,6 +859,7 @@ class RecepcionMercaderiaTest extends TestCase
         ]);
 
         Livewire::test(RecepcionMercaderia::class)
+            ->call('alternarMovimientos')
             ->assertSee('Limpiar registro')
             ->assertSee("limpiarError({$error->id})");
     }
@@ -880,6 +882,66 @@ class RecepcionMercaderiaTest extends TestCase
 
         Livewire::test(RecepcionMercaderia::class)
             ->assertDontSee('Limpiar registro');
+    }
+
+    public function test_los_ultimos_movimientos_vienen_ocultos_con_un_boton_para_mostrarlos(): void
+    {
+        $this->fakeSis();
+
+        Recepcion::create([
+            'fecha' => '2026-10-26',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '2',
+            'hoja' => '1',
+            'comprobante' => '4',
+            'estado' => 'finalizada',
+        ]);
+
+        $component = Livewire::test(RecepcionMercaderia::class);
+
+        // Por defecto la lista está oculta y sólo se ofrece el botón.
+        $this->assertFalse($component->instance()->movimientosVisible);
+        $component->assertSee('Mostrar últimos movimientos')
+            ->assertDontSee('2-4 / 1');
+
+        // Al presionar el botón se despliega.
+        $component->call('alternarMovimientos');
+
+        $this->assertTrue($component->instance()->movimientosVisible);
+        $component->assertSee('Ocultar últimos movimientos')
+            ->assertSee('2-4 / 1');
+
+        // Y se vuelve a ocultar.
+        $component->call('alternarMovimientos');
+
+        $this->assertFalse($component->instance()->movimientosVisible);
+        $component->assertSee('Mostrar últimos movimientos')
+            ->assertDontSee('2-4 / 1');
+    }
+
+    public function test_los_ultimos_movimientos_muestran_el_usuario_que_las_creo(): void
+    {
+        $this->fakeSis();
+
+        Recepcion::create([
+            'fecha' => '2026-10-26',
+            'deposito_cod' => 'D1',
+            'deposito_nom' => 'Depósito Central',
+            'proveedor_cod' => 'P1',
+            'proveedor_nom' => 'Proveedor Test',
+            'ptovta' => '2',
+            'hoja' => '1',
+            'comprobante' => '4',
+            'estado' => 'borrador',
+            'user_id' => 'otro-usuario',
+        ]);
+
+        Livewire::test(RecepcionMercaderia::class)
+            ->call('alternarMovimientos')
+            ->assertSee('otro-usuario');
     }
 
     public function test_no_inicia_si_el_comprobante_ya_existe_en_el_erp(): void

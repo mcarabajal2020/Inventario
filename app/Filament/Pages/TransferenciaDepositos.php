@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Models\Transferencia;
 use App\Models\TransferenciaDetalle;
+use App\Models\User;
 use App\Services\ControlAcceso;
 use App\Services\SisApiClient;
 use Exception;
@@ -54,8 +55,14 @@ class TransferenciaDepositos extends Page
     /** La cabecera se pliega para que en el móvil quede el campo de carga a la vista. */
     public bool $cabeceraVisible = true;
 
+    /** Las últimas transferencias vienen plegadas: sólo se piden cuando se miran. */
+    public bool $movimientosVisible = false;
+
     /** Último error de la API del ERP, para mostrarlo en la pantalla. */
     public string $errorApi = '';
+
+    /** @var array<string, string>|null Nombres del ERP cacheados por request. */
+    protected ?array $nombresUsuarios = null;
 
     public function mount(): void
     {
@@ -201,6 +208,41 @@ class TransferenciaDepositos extends Page
     public function alternarCabecera(): void
     {
         $this->cabeceraVisible = ! $this->cabeceraVisible;
+    }
+
+    /** Pliega o despliega las últimas transferencias. */
+    public function alternarMovimientos(): void
+    {
+        $this->movimientosVisible = ! $this->movimientosVisible;
+    }
+
+    /**
+     * Quién dejó cada transferencia abierta: nombre y código del ERP,
+     * para identificar al responsable. Si el ERP no responde se muestra
+     * sólo el código (nunca rompe la pantalla).
+     */
+    public function nombreUsuario(?string $sisusrcod): string
+    {
+        $codigo = trim((string) $sisusrcod);
+
+        if ($codigo === '') {
+            return '—';
+        }
+
+        if ($this->nombresUsuarios === null) {
+            try {
+                $this->nombresUsuarios = User::query()
+                    ->pluck('sisusrnom', 'sisusrcod')
+                    ->mapWithKeys(fn ($nombre, $cod) => [trim((string) $cod) => trim((string) $nombre)])
+                    ->all();
+            } catch (Exception $e) {
+                $this->nombresUsuarios = [];
+            }
+        }
+
+        $nombre = $this->nombresUsuarios[$codigo] ?? '';
+
+        return $nombre !== '' ? $nombre . ' (' . $codigo . ')' : $codigo;
     }
 
     /** Resumen de la cabecera para mostrarla plegada (una sola línea). */

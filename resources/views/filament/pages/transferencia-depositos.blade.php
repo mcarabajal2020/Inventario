@@ -494,6 +494,24 @@
                 Últimas transferencias
             </x-slot>
 
+            <x-slot name="description">
+                Para identificar quién deja transferencias abiertas
+            </x-slot>
+
+            <div class="mb-4 flex justify-end">
+
+                <x-filament::button
+                    wire:click="alternarMovimientos"
+                    size="sm"
+                    color="gray"
+                >
+                    {{ $movimientosVisible ? 'Ocultar últimos movimientos' : 'Mostrar últimos movimientos' }}
+                </x-filament::button>
+
+            </div>
+
+            @if ($movimientosVisible)
+
             <div class="hidden md:block overflow-x-auto">
 
                 <table class="w-full divide-y divide-gray-200 dark:divide-white/10">
@@ -524,6 +542,10 @@
 
                             <th class="px-4 py-3 text-left text-sm font-semibold">
                                 Mensaje
+                            </th>
+
+                            <th class="px-4 py-3 text-left text-sm font-semibold">
+                                Usuario
                             </th>
 
                         </tr>
@@ -580,13 +602,17 @@
                                     {{ $transferenciaItem->mensaje }}
                                 </td>
 
+                                <td class="px-4 py-3 text-sm">
+                                    {{ $this->nombreUsuario($transferenciaItem->user_id) }}
+                                </td>
+
                             </tr>
 
                         @empty
 
                             <tr>
 
-                                <td colspan="6" class="px-4 py-10 text-center text-sm text-gray-500">
+                                <td colspan="7" class="px-4 py-10 text-center text-sm text-gray-500">
                                     Todavía no se registraron transferencias
                                 </td>
 
@@ -658,6 +684,11 @@
 
                         @endif
 
+                        <div class="mt-1 text-sm">
+                            <span class="font-medium">Usuario:</span>
+                            {{ $this->nombreUsuario($transferenciaItem->user_id) }}
+                        </div>
+
                     </div>
 
                 @empty
@@ -669,6 +700,8 @@
                 @endforelse
 
             </div>
+
+            @endif
 
         </x-filament::section>
 

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\UsuarioDeposito;
 use App\Models\UsuarioRecurso;
 use Illuminate\Support\Facades\Auth;
 
@@ -60,8 +61,9 @@ class ControlAcceso
 
     /**
      * Estado de un recurso sin fila en `usuario_recursos`: los
-     * restringidos (Usuarios, Control de Diferencias) sólo los tienen los
-     * administradores del .env; el resto está habilitado para todos.
+     * restringidos (Consulta de Stock, Control de Diferencias y
+     * Usuarios) sólo los tienen los administradores del .env; el resto
+     * está habilitado para todos.
      */
     public static function porDefecto(string $sisusrcod, string $recurso): bool
     {
@@ -70,6 +72,35 @@ class ControlAcceso
         }
 
         return true;
+    }
+
+    /**
+     * Depósitos que el usuario puede ver en Consulta de Stock.
+     *
+     * null = sin filas en `usuario_depositos` = ve todos (mismo
+     * criterio que el resto de los permisos). Con filas, sólo esos
+     * códigos.
+     *
+     * @return array<int, string>|null
+     */
+    public static function depositosPermitidos(?User $usuario): ?array
+    {
+        if (! $usuario) {
+            return [];
+        }
+
+        $filas = UsuarioDeposito::query()
+            ->where('sisusrcod', $usuario->sisusrcod)
+            ->pluck('depcod');
+
+        if ($filas->isEmpty()) {
+            return null;
+        }
+
+        return $filas
+            ->map(fn ($depcod) => trim((string) $depcod))
+            ->values()
+            ->all();
     }
 
     /**

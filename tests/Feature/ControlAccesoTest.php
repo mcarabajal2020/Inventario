@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Filament\Pages\Usuarios;
 use App\Models\User;
+use App\Models\UsuarioDeposito;
 use App\Models\UsuarioRecurso;
 use App\Services\ControlAcceso;
 use Illuminate\Database\Schema\Blueprint;
@@ -33,10 +34,17 @@ class ControlAccesoTest extends TestCase
                 'database' => ':memory:',
                 'prefix' => '',
             ],
+            // Depósitos del ERP para la lista de Consulta de Stock.
+            'database.connections.mutualnew' => [
+                'driver' => 'sqlite',
+                'database' => ':memory:',
+                'prefix' => '',
+            ],
             'recursos.admins' => ['admin-erp'],
         ]);
 
         DB::purge('siserpy');
+        DB::purge('mutualnew');
 
         DB::connection('siserpy')->getSchemaBuilder()->create('sisusuar', function (Blueprint $table) {
             $table->string('sisusrcod');
@@ -51,12 +59,23 @@ class ControlAccesoTest extends TestCase
             ['sisusrcod' => 'operario', 'sisusrnom' => 'Operario', 'sisgrpcod' => 'deposito', 'inactivo' => 0],
         ]);
 
+        DB::connection('mutualnew')->getSchemaBuilder()->create('stkdepos', function (Blueprint $table) {
+            $table->string('depcod');
+            $table->string('depnom');
+        });
+
+        DB::connection('mutualnew')->table('stkdepos')->insert([
+            ['depcod' => '1000', 'depnom' => 'Depósito Darregueira'],
+            ['depcod' => '3000', 'depnom' => 'Depósito Salliquelo'],
+        ]);
+
         $this->actingAs($this->usuario('operario'));
     }
 
     protected function tearDown(): void
     {
         DB::purge('siserpy');
+        DB::purge('mutualnew');
 
         parent::tearDown();
     }
@@ -428,5 +447,91 @@ class ControlAccesoTest extends TestCase
         Livewire::test(Usuarios::class)
             ->set('busqueda', 'operario')
             ->assertSee('Operario');
+    }
+
+    /* ----------------------------------------------------------------
+     |  Depósitos de Consulta de Stock
+     * ------------------------------------------------------------- */
+
+    public function test_se_pueden_elegir_los_depositos_de_consulta_stock(): void
+    {
+        Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario')
+            ->call('alternarDeposito', '1000')
+            ->call('alternarDeposito', '3000');
+
+        $this->assertDatabaseHas('usuario_depositos', ['sisusrcod' => 'operario', 'depcod' => '1000']);
+        $this->assertDatabaseHas('usuario_depositos', ['sisusrcod' => 'operario', 'depcod' => '3000']);
+
+        // Volver a presionar lo quita.
+        Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario')
+            ->call('alternarDeposito', '1000');
+
+        $this->assertDatabaseMissing('usuario_depositos', ['sisusrcod' => 'operario', 'depcod' => '1000']);
+        $this->assertDatabaseHas('usuario_depositos', ['sisusrcod' => 'operario', 'depcod' => '3000']);
+    }
+
+    public function test_los_depositos_elegidos_se_cargan_al_elegir_el_usuario(): void
+    {
+        UsuarioDeposito::query()->create(['sisusrcod' => 'operario', 'depcod' => '1000']);
+        UsuarioDeposito::query()->create(['sisusrcod' => 'admin-erp', 'depcod' => '3000']);
+
+        $component = Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario');
+
+        $this->assertSame(['1000'], $component->instance()->depositosSeleccionados);
+
+        // Al cambiar de usuario cambia la selección.
+        $component->set('usuario', 'admin-erp');
+
+        $this->assertSame(['3000'], $component->instance()->depositosSeleccionados);
+    }
+
+    public function test_sin_depositos_elegidos_no_se_muestra_ninguno_marcado(): void
+    {
+        $component = Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario');
+
+        $this->assertSame([], $component->instance()->depositosSeleccionados);
+    }
+
+    public function test_la_lista_de_depositos_solo_se_muestra_si_consulta_stock_esta_habilitado(): void
+    {
+        // Consulta de Stock es restringido: para un no admin está cerrado.
+        Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario')
+            ->assertDontSee('Depósitos visibles en Consulta de Stock');
+
+        // Habilitado a mano desde la pantalla: aparece la lista.
+        UsuarioRecurso::query()->create([
+            'sisusrcod' => 'operario',
+            'recurso' => 'consulta-stock',
+            'habilitado' => true,
+        ]);
+
+        Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario')
+            ->assertSee('Depósitos visibles en Consulta de Stock')
+            ->assertSee('Depósito Darregueira')
+            ->assertSee('Depósito Salliquelo');
+    }
+
+    public function test_los_depositos_del_erp_se_muestran_ordenados_por_numero(): void
+    {
+        DB::connection('mutualnew')->table('stkdepos')->insert([
+            ['depcod' => '9000', 'depnom' => 'CAB'],
+            ['depcod' => '5000', 'depnom' => 'Depósito Villa Iris'],
+        ]);
+
+        $depositos = Livewire::test(Usuarios::class)
+            ->set('usuario', 'operario')
+            ->instance()
+            ->depositosDisponibles();
+
+        $this->assertSame(
+            ['1000', '3000', '5000', '9000'],
+            array_column($depositos, 'depcod')
+        );
     }
 }

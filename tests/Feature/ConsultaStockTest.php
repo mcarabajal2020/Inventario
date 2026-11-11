@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Filament\Pages\ConsultaStock;
 use App\Models\User;
+use App\Models\UsuarioDeposito;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
@@ -139,6 +140,78 @@ class ConsultaStockTest extends TestCase
             ->assertSee('Artículo Test')
             ->assertSee('Sin stock en ningún depósito')
             ->assertNotified('Sin stock');
+
+        $this->assertCount(0, $component->get('saldos'));
+        $this->assertSame('A1', $component->get('articulo')['artcod']);
+    }
+
+    public function test_muestra_solo_los_depositos_habilitados_para_el_usuario(): void
+    {
+        $this->fakeSis([
+            '*/stock/consulta-stock/*' => Http::response([
+                $this->fila('A1', 'Artículo Test', '1000', 'Depósito Darregueira', 3),
+                $this->fila('A1', 'Artículo Test', '3000', 'Depósito Salliquelo', 2),
+            ]),
+        ]);
+
+        // El usuario sólo ve el depósito 1000.
+        UsuarioDeposito::query()->create([
+            'sisusrcod' => 'test-user',
+            'depcod' => '1000',
+        ]);
+
+        $component = Livewire::test(ConsultaStock::class)
+            ->set('codigo', '7790000000001')
+            ->call('consultar')
+            ->assertSee('Depósito Darregueira')
+            ->assertDontSee('Depósito Salliquelo');
+
+        $saldos = collect($component->get('saldos'));
+
+        $this->assertCount(1, $saldos);
+        $this->assertSame('1000', $saldos->first()['depcod']);
+        $this->assertEquals(3, $saldos->first()['stock']);
+    }
+
+    public function test_sin_depositos_elegidos_ve_todos(): void
+    {
+        // Sin filas en usuario_depositos (default): se ven los dos.
+        $this->fakeSis([
+            '*/stock/consulta-stock/*' => Http::response([
+                $this->fila('A1', 'Artículo Test', '1000', 'Depósito Darregueira', 3),
+                $this->fila('A1', 'Artículo Test', '3000', 'Depósito Salliquelo', 2),
+            ]),
+        ]);
+
+        $component = Livewire::test(ConsultaStock::class)
+            ->set('codigo', '7790000000001')
+            ->call('consultar')
+            ->assertSee('Depósito Darregueira')
+            ->assertSee('Depósito Salliquelo');
+
+        $this->assertCount(2, collect($component->get('saldos')));
+    }
+
+    public function test_si_no_tiene_stock_en_sus_depositos_lo_avisa(): void
+    {
+        // El artículo sólo tiene stock en un depósito que el usuario no ve.
+        $this->fakeSis([
+            '*/stock/consulta-stock/*' => Http::response([
+                $this->fila('A1', 'Artículo Test', '3000', 'Depósito Salliquelo', 2),
+            ]),
+        ]);
+
+        UsuarioDeposito::query()->create([
+            'sisusrcod' => 'test-user',
+            'depcod' => '1000',
+        ]);
+
+        $component = Livewire::test(ConsultaStock::class)
+            ->set('codigo', '7790000000001')
+            ->call('consultar')
+            ->assertSee('A1')
+            ->assertNotified('Sin stock en sus depósitos')
+            ->assertDontSee('Depósito Salliquelo');
 
         $this->assertCount(0, $component->get('saldos'));
         $this->assertSame('A1', $component->get('articulo')['artcod']);

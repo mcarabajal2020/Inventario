@@ -166,6 +166,57 @@
 
                 @endif
 
+                @if ($this->consultaStockHabilitado())
+
+                    <div class="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
+
+                        <div class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                            Depósitos visibles en Consulta de Stock
+                        </div>
+
+                        <div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Sin selección, {{ $this->nombreUsuario() }} verá <strong>todos</strong> los depósitos.
+                            Marque sólo los que deba ver.
+                        </div>
+
+                        @if (count($this->depositosDisponibles()) === 0)
+
+                            <div class="mt-3 text-sm text-warning-700 dark:text-warning-400">
+                                No se pudieron cargar los depósitos del ERP: revise la conexión con la base mutualnew.
+                            </div>
+
+                        @else
+
+                            <div class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+
+                                @foreach ($this->depositosDisponibles() as $deposito)
+
+                                    <label class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5">
+
+                                        <input
+                                            type="checkbox"
+                                            wire:click="alternarDeposito('{{ $deposito['depcod'] }}')"
+                                            @checked(in_array($deposito['depcod'], $depositosSeleccionados, true))
+                                            class="size-4 shrink-0 cursor-pointer accent-info-600"
+                                        >
+
+                                        <span>
+                                            {{ $deposito['depnom'] }}
+                                            <span class="text-gray-500 dark:text-gray-400">({{ $deposito['depcod'] }})</span>
+                                        </span>
+
+                                    </label>
+
+                                @endforeach
+
+                            </div>
+
+                        @endif
+
+                    </div>
+
+                @endif
+
             </x-filament::section>
 
         @elseif (filled($this->usuario))

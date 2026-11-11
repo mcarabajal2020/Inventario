@@ -77,11 +77,19 @@ class ConsultaStock extends Page
             return;
         }
 
+        $permitidos = $this->filtrarDepositos($saldos);
+
+        if (empty($permitidos)) {
+            $this->sinStockEnDepositos($saldos[0]);
+
+            return;
+        }
+
         $this->articulo = [
-            'artcod' => $saldos[0]['artcod'],
-            'artdes' => $saldos[0]['artdes'],
+            'artcod' => $permitidos[0]['artcod'],
+            'artdes' => $permitidos[0]['artdes'],
         ];
-        $this->saldos = $saldos;
+        $this->saldos = $permitidos;
         $this->codigo = '';
 
         $this->dispatch('focus-input');
@@ -128,12 +136,66 @@ class ConsultaStock extends Page
             return;
         }
 
+        $permitidos = $this->filtrarDepositos($saldos);
+
+        if (empty($permitidos)) {
+            $this->articulo = ['artcod' => $artcod, 'artdes' => $artdes];
+            $this->saldos = [];
+            $this->codigo = '';
+
+            $this->notificacion('Sin stock en sus depósitos', 'El artículo tiene stock, pero no en los depósitos habilitados para su usuario.', 'warning');
+
+            $this->dispatch('focus-input');
+
+            return;
+        }
+
         $this->articulo = [
-            'artcod' => $saldos[0]['artcod'],
-            'artdes' => $saldos[0]['artdes'],
+            'artcod' => $permitidos[0]['artcod'],
+            'artdes' => $permitidos[0]['artdes'],
         ];
-        $this->saldos = $saldos;
+        $this->saldos = $permitidos;
         $this->codigo = '';
+
+        $this->dispatch('focus-input');
+    }
+
+    /**
+     * Sólo los depósitos habilitados para el usuario. Sin filas en
+     * `usuario_depositos` se devuelven todos.
+     */
+    protected function filtrarDepositos(array $saldos): array
+    {
+        $permitidos = ControlAcceso::depositosPermitidos(ControlAcceso::usuarioActual());
+
+        if ($permitidos === null) {
+            return $saldos;
+        }
+
+        return array_values(array_filter(
+            $saldos,
+            fn ($saldo) => in_array(trim((string) ($saldo['depcod'] ?? '')), $permitidos, true)
+        ));
+    }
+
+    /**
+     * El artículo tiene stock sólo en depósitos que el usuario no ve:
+     * se muestra el artículo sin saldos y el aviso correspondiente.
+     */
+    protected function sinStockEnDepositos(array $fila): void
+    {
+        $this->articulo = [
+            'artcod' => $fila['artcod'] ?? null,
+            'artdes' => $fila['artdes'] ?? null,
+        ];
+        $this->saldos = [];
+        $this->codigo = '';
+
+        $this->notificacion(
+            'Sin stock en sus depósitos',
+            'El artículo tiene stock, pero no en los depósitos habilitados para su usuario.',
+            'warning'
+        );
 
         $this->dispatch('focus-input');
     }

@@ -3,11 +3,14 @@
 namespace App\Filament\Pages;
 
 use App\Models\User;
+use App\Models\UsuarioDeposito;
 use App\Models\UsuarioRecurso;
 use App\Services\ControlAcceso;
+use Exception;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Habilita o bloquea los recursos (secciones del menú) por usuario. Los
@@ -35,8 +38,14 @@ class Usuarios extends Page
     /** Estado de cada recurso para el usuario seleccionado. */
     public array $permisos = [];
 
+    /** Depósitos elegidos para Consulta de Stock (vacío = todos). */
+    public array $depositosSeleccionados = [];
+
     /** @var Collection<int, array<string, mixed>>|null */
     protected ?Collection $cacheUsuarios = null;
+
+    /** @var array<int, array{depcod: string, depnom: string}>|null Depósitos del ERP. */
+    protected ?array $cacheDepositos = null;
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -207,6 +216,7 @@ class Usuarios extends Page
     protected function cargarPermisos(): void
     {
         $this->permisos = [];
+        $this->depositosSeleccionados = [];
 
         if (blank($this->usuario)) {
             return;
@@ -222,6 +232,84 @@ class Usuarios extends Page
             $this->permisos[$recurso] = isset($guardados[$recurso])
                 ? (bool) $guardados[$recurso]
                 : ControlAcceso::porDefecto((string) $this->usuario, $recurso);
+        }
+
+        // Depósitos visibles en Consulta de Stock (vacío = todos).
+        $this->depositosSeleccionados = UsuarioDeposito::query()
+            ->where('sisusrcod', (string) $this->usuario)
+            ->pluck('depcod')
+            ->map(fn ($depcod) => trim((string) $depcod))
+            ->values()
+            ->all();
+    }
+
+    /** ¿Consulta de Stock está habilitado para el usuario elegido? */
+    public function consultaStockHabilitado(): bool
+    {
+        return (bool) ($this->permisos['consulta-stock'] ?? false);
+    }
+
+    /**
+     * Depósitos del ERP para la lista de selección, ordenados por
+     * número. Si la base no responde se muestra la lista vacía.
+     *
+     * @return array<int, array{depcod: string, depnom: string}>
+     */
+    public function depositosDisponibles(): array
+    {
+        if ($this->cacheDepositos !== null) {
+            return $this->cacheDepositos;
+        }
+
+        try {
+            $this->cacheDepositos = DB::connection('mutualnew')
+                ->table('stkdepos')
+                ->get(['depcod', 'depnom'])
+                ->map(fn ($deposito) => [
+                    'depcod' => trim((string) $deposito->depcod),
+                    'depnom' => trim((string) $deposito->depnom),
+                ])
+                ->sortBy(fn ($deposito) => (int) $deposito['depcod'])
+                ->values()
+                ->all();
+        } catch (Exception $e) {
+            $this->cacheDepositos = [];
+        }
+
+        return $this->cacheDepositos;
+    }
+
+    /** Habilita o bloquea un depósito para Consulta de Stock. */
+    public function alternarDeposito(string $depcod): void
+    {
+        $depcod = trim($depcod);
+
+        if ($depcod === '' || blank($this->usuario)) {
+            return;
+        }
+
+        $existe = UsuarioDeposito::query()
+            ->where('sisusrcod', (string) $this->usuario)
+            ->where('depcod', $depcod)
+            ->exists();
+
+        if ($existe) {
+            UsuarioDeposito::query()
+                ->where('sisusrcod', (string) $this->usuario)
+                ->where('depcod', $depcod)
+                ->delete();
+
+            $this->depositosSeleccionados = array_values(array_filter(
+                $this->depositosSeleccionados,
+                fn ($cod) => $cod !== $depcod
+            ));
+        } else {
+            UsuarioDeposito::query()->create([
+                'sisusrcod' => (string) $this->usuario,
+                'depcod' => $depcod,
+            ]);
+
+            $this->depositosSeleccionados[] = $depcod;
         }
     }
 }

@@ -111,8 +111,9 @@ class ControlAccesoTest extends TestCase
     public function test_por_defecto_los_recursos_comunes_estan_habilitados(): void
     {
         foreach (array_keys(ControlAcceso::catalogo()) as $recurso) {
-            // Usuarios y Control de Diferencias son restringidos: sin
-            // fila sólo los tienen los admins del .env (se asierta abajo).
+            // Los restringidos (Consulta de Stock, Usuarios y Control de
+            // Diferencias) sólo los tienen los admins del .env: se asienta
+            // en el test de abajo.
             if (ControlAcceso::esRestringido($recurso)) {
                 continue;
             }
@@ -124,35 +125,53 @@ class ControlAccesoTest extends TestCase
         }
 
         $this->get('/admin/inventarios')->assertOk();
-        $this->get('/admin/consulta-stock')->assertOk();
         $this->get('/admin/transferencias')->assertOk();
+        $this->get('/admin/recepcion-mercaderia')->assertOk();
     }
 
     public function test_por_defecto_los_restringidos_no_estan_habilitados_para_no_admins(): void
     {
-        foreach (['usuarios', 'control-diferencias'] as $recurso) {
-            $this->assertTrue(ControlAcceso::esRestringido($recurso));
+        $restringidos = array_filter(
+            array_keys(ControlAcceso::catalogo()),
+            fn ($recurso) => ControlAcceso::esRestringido($recurso)
+        );
 
+        // Consulta de Stock, Control de Diferencias y Usuarios (en el
+        // orden del catálogo).
+        $this->assertSame(
+            ['consulta-stock', 'control-diferencias', 'usuarios'],
+            array_values($restringidos)
+        );
+
+        foreach ($restringidos as $recurso) {
             $this->assertFalse(
                 ControlAcceso::habilitado($this->usuario('operario'), $recurso),
                 "El recurso {$recurso} no debería estar habilitado para un no admin"
             );
-        }
 
-        // La URL directa redirige al menú (recurso bloqueado).
-        $this->get('/admin/control-diferencias')->assertRedirect('/admin');
-        $this->get('/admin/usuarios')->assertRedirect('/admin');
+            // La URL directa redirige al menú (recurso bloqueado).
+            $ruta = ControlAcceso::catalogo()[$recurso]['rutas'][0];
+
+            $this->get($ruta)->assertRedirect('/admin');
+        }
     }
 
     public function test_por_defecto_los_restringidos_si_estan_habilitados_para_admins(): void
     {
         $this->actingAs($this->usuario('admin-erp'));
 
-        $this->assertTrue(ControlAcceso::habilitado($this->usuario('admin-erp'), 'usuarios'));
-        $this->assertTrue(ControlAcceso::habilitado($this->usuario('admin-erp'), 'control-diferencias'));
+        foreach (array_keys(ControlAcceso::catalogo()) as $recurso) {
+            if (! ControlAcceso::esRestringido($recurso)) {
+                continue;
+            }
 
-        $this->get('/admin/control-diferencias')->assertOk();
-        $this->get('/admin/usuarios')->assertOk();
+            $this->assertTrue(
+                ControlAcceso::habilitado($this->usuario('admin-erp'), $recurso),
+                "El recurso {$recurso} debería estar habilitado para un admin"
+            );
+
+            $this->get(ControlAcceso::catalogo()[$recurso]['rutas'][0])->assertOk();
+        }
     }
 
     /* ----------------------------------------------------------------
@@ -212,14 +231,34 @@ class ControlAccesoTest extends TestCase
     public function test_el_menu_oculta_los_recursos_bloqueados(): void
     {
         $this->bloquear('operario', 'recepcion');
-        $this->bloquear('operario', 'consulta-stock');
+        $this->bloquear('operario', 'transferencias');
 
         $respuesta = $this->get('/admin');
 
         $respuesta->assertOk();
         $respuesta->assertDontSee('/admin/recepcion-mercaderia', false);
+        $respuesta->assertDontSee('/admin/transferencias', false);
+        $respuesta->assertSee('/admin/inventarios', false);
+    }
+
+    public function test_el_menu_de_consulta_stock_no_se_ve_para_no_admins(): void
+    {
+        // Restringido por defecto: sin fila no aparece en el menú.
+        $respuesta = $this->get('/admin');
+
+        $respuesta->assertOk();
         $respuesta->assertDontSee('/admin/consulta-stock', false);
         $respuesta->assertSee('/admin/inventarios', false);
+    }
+
+    public function test_el_menu_de_consulta_stock_se_ve_para_admins(): void
+    {
+        $this->actingAs($this->usuario('admin-erp'));
+
+        $respuesta = $this->get('/admin');
+
+        $respuesta->assertOk();
+        $respuesta->assertSee('/admin/consulta-stock', false);
     }
 
     public function test_el_menu_de_usuarios_no_se_ve_para_no_admins(): void
@@ -371,7 +410,12 @@ class ControlAccesoTest extends TestCase
 
         $this->assertFalse($permisos['recepcion']);
         $this->assertTrue($permisos['inventarios']);
-        $this->assertTrue($permisos['consulta-stock']);
+        $this->assertTrue($permisos['transferencias']);
+
+        // Los restringidos vienen bloqueados para un no admin.
+        $this->assertFalse($permisos['consulta-stock']);
+        $this->assertFalse($permisos['control-diferencias']);
+        $this->assertFalse($permisos['usuarios']);
     }
 
     public function test_busca_usuarios_por_codigo_o_nombre(): void

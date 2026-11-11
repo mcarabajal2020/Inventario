@@ -25,6 +25,9 @@ class ConsultaStockTest extends TestCase
             'sis.empresa' => 'TEST',
             'sis.username' => null,
             'sis.password' => null,
+            // Consulta de Stock es restringido por defecto: el usuario
+            // de los tests entra como admin del .env.
+            'recursos.admins' => ['test-user'],
         ]);
 
         $user = new User(['sisusrcod' => 'test-user']);

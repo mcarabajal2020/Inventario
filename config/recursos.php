@@ -8,11 +8,11 @@ return [
     |--------------------------------------------------------------------------
     |
     | Estos usuarios (código `sisusrcod` del ERP, separados por coma) ven
-    | por defecto los recursos marcados como "restringidos" (Usuarios y
-    | Control de Diferencias) además de todos los comunes. Un admin puede
-    | habilitar o bloquear cualquier recurso a cualquier usuario desde
-    | /admin/usuarios; la pantalla no le permite quitarse la sección
-    | Usuarios a sí mismo, para no quedar afuera.
+    | por defecto los recursos marcados como "restringidos" (Consulta de
+    | Stock, Usuarios y Control de Diferencias) además de todos los
+    | comunes. Un admin puede habilitar o bloquear cualquier recurso a
+    | cualquier usuario desde /admin/usuarios; la pantalla no le permite
+    | quitarse la sección Usuarios a sí mismo, para no quedar afuera.
     |
     */
 
@@ -62,6 +62,7 @@ return [
         'consulta-stock' => [
             'titulo' => 'Consulta de Stock',
             'rutas' => ['/admin/consulta-stock'],
+            'restringido' => true,
         ],
         'control-diferencias' => [
             'titulo' => 'Control de Diferencias',
